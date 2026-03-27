@@ -8,18 +8,36 @@ const IFD   = "IFD N° 12";
 
 const params  = new URLSearchParams(location.search);
 const isScan  = params.get("scan") === "1";
-const fechaId = params.get("fecha") || null;
 
 window.addEventListener("DOMContentLoaded", () => {
-  if (isScan && fechaId) {
-    renderVistaAlumno(fechaId);
+  if (isScan) {
+    // Fecha automática del momento del escaneo
+    const hoy = getFechaHoy();
+    renderVistaAlumno(hoy);
   } else {
     renderPanel();
   }
 });
 
+// ── Helpers de fecha ─────────────────────────────────────
+function getFechaHoy() {
+  const now = new Date();
+  const y   = now.getFullYear();
+  const m   = String(now.getMonth() + 1).padStart(2, "0");
+  const d   = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatearFecha(fechaStr) {
+  const [y, m, d] = fechaStr.split("-").map(Number);
+  const dias  = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const fecha = new Date(y, m - 1, d);
+  return `${dias[fecha.getDay()]} ${d} de ${meses[m - 1]} ${y}`;
+}
+
 // ══════════════════════════════════════════════════════════
-//  VISTA ALUMNO
+//  VISTA ALUMNO  (se abre al escanear el QR)
 // ══════════════════════════════════════════════════════════
 function renderVistaAlumno(fechaId) {
   const app = document.getElementById("app");
@@ -28,44 +46,47 @@ function renderVistaAlumno(fechaId) {
       <div class="phone-header">
         <div class="logo-pill">${IFD}</div>
         <h1 class="phone-title">Marcar presencia</h1>
-        <p class="phone-sub" id="clase-info">Cargando...</p>
+        <p class="phone-sub">${formatearFecha(fechaId)}</p>
+        <p class="phone-sub">${CURSO} · Turno ${TURNO}</p>
       </div>
-      <div id="scan-body" class="phone-body"></div>
+      <div id="scan-body" class="phone-body">
+        <p style="text-align:center;color:#6b7280;font-size:14px;">Cargando lista...</p>
+      </div>
     </div>
   `;
 
-  db.ref("fechas/" + fechaId).once("value", snap => {
-    const datos = snap.val();
-    if (!datos) {
+  // Crear el registro del día si no existe, y cargar alumnos
+  db.ref("alumnos").once("value", snap => {
+    const alumnos = snap.val() ? Object.values(snap.val()) : [];
+
+    if (alumnos.length === 0) {
       document.getElementById("scan-body").innerHTML =
-        `<div class="alert-error">El código QR no es válido o ya expiró.</div>`;
+        `<div class="alert-error">No hay alumnos cargados. Avisá al preceptor.</div>`;
       return;
     }
-    const fechaDisplay = formatearFecha(datos.fecha);
-    document.getElementById("clase-info").textContent =
-      `${fechaDisplay} · ${CURSO} · Turno ${TURNO}`;
 
-    const alumnos = datos.alumnos ? Object.values(datos.alumnos) : [];
-    renderFormAlumno(fechaId, alumnos, datos.expira);
+    // Crear el día automáticamente si no existe
+    const alumnosObj = {};
+    alumnos.forEach((a, i) => alumnosObj[i] = a);
+
+    db.ref("fechas/" + fechaId).once("value", snapFecha => {
+      if (!snapFecha.val()) {
+        // Primera vez que se escanea hoy: crear el registro del día
+        db.ref("fechas/" + fechaId).set({ fecha: fechaId, alumnos: alumnosObj });
+      }
+      renderFormAlumno(fechaId, alumnos);
+    });
   });
 }
 
-function renderFormAlumno(fechaId, alumnos, expira) {
-  const ahora = Date.now();
-  const body  = document.getElementById("scan-body");
-
-  if (expira && ahora > expira) {
-    body.innerHTML = `<div class="alert-error">El tiempo para registrar presencia ya cerró.</div>`;
-    return;
-  }
-
+function renderFormAlumno(fechaId, alumnos) {
   db.ref("presentes/" + fechaId).on("value", snap => {
     const presentes = snap.val() ? Object.values(snap.val()).map(p => p.nombre) : [];
     const opciones  = alumnos.map(a =>
       `<option value="${a}" ${presentes.includes(a) ? "disabled" : ""}>${a}${presentes.includes(a) ? " ✓" : ""}</option>`
     ).join("");
 
-    body.innerHTML = `
+    document.getElementById("scan-body").innerHTML = `
       <div class="form-group">
         <label class="form-label">Seleccioná tu nombre</label>
         <select id="alumno-sel" class="form-select">
@@ -92,8 +113,8 @@ function marcarPresente(fechaId) {
   const nombre = sel.value;
   if (!nombre) return;
 
-  const btn  = document.getElementById("btn-marcar");
-  btn.disabled  = true;
+  const btn = document.getElementById("btn-marcar");
+  btn.disabled    = true;
   btn.textContent = "Registrando...";
 
   const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -129,7 +150,7 @@ function renderPanel() {
 
       <div class="tabs">
         <button class="tab active" onclick="showTab('tab-alumnos', this)">Alumnos</button>
-        <button class="tab" onclick="showTab('tab-qr', this)">Generar QR</button>
+        <button class="tab" onclick="showTab('tab-qr', this)">Código QR</button>
         <button class="tab" onclick="showTab('tab-registro', this)">Registro</button>
       </div>
 
@@ -149,36 +170,20 @@ function renderPanel() {
         </div>
       </div>
 
-      <!-- TAB: Generar QR -->
+      <!-- TAB: QR permanente -->
       <div id="tab-qr" class="tab-content">
         <div class="card">
-          <h2 class="card-title">Generar QR del día</h2>
-          <div class="form-group">
-            <label class="form-label">Fecha</label>
-            <input id="inp-fecha" type="date" class="inp" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Tiempo para marcar presente</label>
-            <select id="inp-tiempo" class="form-select">
-              <option value="0">Sin límite</option>
-              <option value="10">10 minutos</option>
-              <option value="15" selected>15 minutos</option>
-              <option value="20">20 minutos</option>
-              <option value="30">30 minutos</option>
-            </select>
-          </div>
-          <button class="btn-primary" onclick="generarQR()">Generar QR</button>
-        </div>
-
-        <div id="qr-card" class="card" style="display:none;">
-          <h2 class="card-title" id="qr-titulo"></h2>
+          <h2 class="card-title">Código QR del curso</h2>
+          <p style="font-size:14px;color:#6b7280;margin-bottom:1rem;">
+            Este QR es permanente. Imprimilo o guardalo una sola vez. 
+            Cada vez que un alumno lo escanea, se registra automáticamente con la fecha del día.
+          </p>
           <div class="qr-center">
             <div id="qr-box" style="background:white;padding:16px;border-radius:8px;border:1px solid #e5e7eb;display:inline-block;"></div>
           </div>
-          <p class="qr-hint">Mostrá este QR en el proyector o imprimilo. Los alumnos lo escanean con la cámara del celular.</p>
-          <div class="row-gap" style="justify-content:center;margin-top:12px">
+          <p class="qr-hint" style="margin-top:1rem;">${IFD} · ${CURSO} · Turno ${TURNO}</p>
+          <div class="row-gap" style="justify-content:center;margin-top:1rem">
             <button class="btn-outline" onclick="window.print()">Imprimir QR</button>
-            <button class="btn-outline" onclick="showTab('tab-registro', document.querySelectorAll('.tab')[2])">Ver registro en vivo</button>
           </div>
         </div>
       </div>
@@ -214,11 +219,18 @@ function renderPanel() {
     </div>
   `;
 
-  const hoy = new Date().toISOString().split("T")[0];
-  document.getElementById("inp-fecha").value = hoy;
-
   loadAlumnosFromDB();
+  generarQRPermanente();
   loadFechasSelect();
+}
+
+// ── QR permanente ─────────────────────────────────────────
+function generarQRPermanente() {
+  const url = `${location.origin}${location.pathname}?scan=1`;
+  const box = document.getElementById("qr-box");
+  if (!box) return;
+  box.innerHTML = "";
+  new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 }
 
 // ── Tabs ──────────────────────────────────────────────────
@@ -228,6 +240,7 @@ function showTab(id, btn) {
   document.getElementById(id).classList.add("active");
   btn.classList.add("active");
   if (id === "tab-registro") loadFechasSelect();
+  if (id === "tab-qr") generarQRPermanente();
 }
 
 // ── Alumnos ───────────────────────────────────────────────
@@ -290,32 +303,6 @@ function cargarEjemplo() {
   saveAlumnos();
 }
 
-// ── QR por fecha ──────────────────────────────────────────
-function generarQR() {
-  const fecha   = document.getElementById("inp-fecha").value;
-  const minutos = parseInt(document.getElementById("inp-tiempo").value);
-
-  if (!fecha) { alert("Seleccioná una fecha"); return; }
-  if (alumnos.length === 0) { alert("Primero cargá los alumnos en la pestaña Alumnos"); return; }
-
-  const fechaId = fecha; // usamos la fecha directamente como ID: "2026-03-27"
-  const expira  = minutos > 0 ? Date.now() + minutos * 60000 : null;
-
-  const alumnosObj = {};
-  alumnos.forEach((a, i) => alumnosObj[i] = a);
-
-  db.ref("fechas/" + fechaId).set({ fecha, expira, alumnos: alumnosObj })
-    .then(() => {
-      const url = `${location.origin}${location.pathname}?scan=1&fecha=${fechaId}`;
-      document.getElementById("qr-titulo").textContent = `QR — ${formatearFecha(fecha)}`;
-      document.getElementById("qr-card").style.display = "block";
-      const box = document.getElementById("qr-box");
-      box.innerHTML = "";
-      new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
-      loadFechasSelect();
-    });
-}
-
 // ── Registro ──────────────────────────────────────────────
 let regListener = null;
 
@@ -341,7 +328,7 @@ function cargarRegistro(fechaId) {
 
     regListener = db.ref("presentes/" + fechaId);
     regListener.on("value", snap => {
-      const pObj     = snap.val() || {};
+      const pObj      = snap.val() || {};
       const presentes = Object.values(pObj).sort((a, b) => a.timestamp - b.timestamp);
       const nombresP  = presentes.map(p => p.nombre);
       const ausentes  = totalAlumnos.filter(a => !nombresP.includes(a));
@@ -379,14 +366,4 @@ function exportCSV() {
   link.href     = url;
   link.download = `asistencia_${d.fecha}.csv`;
   link.click();
-}
-
-// ── Helpers ───────────────────────────────────────────────
-function formatearFecha(fechaStr) {
-  // "2026-03-27" → "Jueves 27 de Marzo 2026"
-  const [y, m, d] = fechaStr.split("-").map(Number);
-  const dias  = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-  const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-  const fecha = new Date(y, m - 1, d);
-  return `${dias[fecha.getDay()]} ${d} de ${meses[m - 1]} ${y}`;
 }
