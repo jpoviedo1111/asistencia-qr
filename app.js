@@ -6,23 +6,22 @@ const CURSO = "3° 6°";
 const TURNO = "Tarde";
 const IFD   = "IFD N° 12";
 
-const params = new URLSearchParams(location.search);
-const isScan = params.get("scan") === "1";
-const claseId = params.get("clase") || null;
+const params  = new URLSearchParams(location.search);
+const isScan  = params.get("scan") === "1";
+const fechaId = params.get("fecha") || null;
 
-// ── Arranque ──────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
-  if (isScan && claseId) {
-    renderVistaAlumno(claseId);
+  if (isScan && fechaId) {
+    renderVistaAlumno(fechaId);
   } else {
     renderPanel();
   }
 });
 
 // ══════════════════════════════════════════════════════════
-//  VISTA ALUMNO  (página que ven al escanear el QR)
+//  VISTA ALUMNO
 // ══════════════════════════════════════════════════════════
-function renderVistaAlumno(claseId) {
+function renderVistaAlumno(fechaId) {
   const app = document.getElementById("app");
   app.innerHTML = `
     <div class="phone-wrap">
@@ -31,45 +30,40 @@ function renderVistaAlumno(claseId) {
         <h1 class="phone-title">Marcar presencia</h1>
         <p class="phone-sub" id="clase-info">Cargando...</p>
       </div>
-
       <div id="scan-body" class="phone-body"></div>
     </div>
   `;
 
-  const claseRef = db.ref("clases/" + claseId);
-  claseRef.once("value", snap => {
-    const clase = snap.val();
-    if (!clase) {
+  db.ref("fechas/" + fechaId).once("value", snap => {
+    const datos = snap.val();
+    if (!datos) {
       document.getElementById("scan-body").innerHTML =
         `<div class="alert-error">El código QR no es válido o ya expiró.</div>`;
       return;
     }
-
+    const fechaDisplay = formatearFecha(datos.fecha);
     document.getElementById("clase-info").textContent =
-      `${clase.materia} · ${clase.fecha} · ${CURSO} · Turno ${TURNO}`;
+      `${fechaDisplay} · ${CURSO} · Turno ${TURNO}`;
 
-    const alumnos = clase.alumnos ? Object.values(clase.alumnos) : [];
-    renderFormAlumno(claseId, alumnos, clase.expira);
+    const alumnos = datos.alumnos ? Object.values(datos.alumnos) : [];
+    renderFormAlumno(fechaId, alumnos, datos.expira);
   });
 }
 
-function renderFormAlumno(claseId, alumnos, expira) {
+function renderFormAlumno(fechaId, alumnos, expira) {
   const ahora = Date.now();
-  const body = document.getElementById("scan-body");
+  const body  = document.getElementById("scan-body");
 
   if (expira && ahora > expira) {
     body.innerHTML = `<div class="alert-error">El tiempo para registrar presencia ya cerró.</div>`;
     return;
   }
 
-  // Escucha presentes en tiempo real para deshabilitar ya registrados
-  const presentesRef = db.ref("presentes/" + claseId);
-  presentesRef.on("value", snap => {
+  db.ref("presentes/" + fechaId).on("value", snap => {
     const presentes = snap.val() ? Object.values(snap.val()).map(p => p.nombre) : [];
-
-    const opciones = alumnos
-      .map(a => `<option value="${a}" ${presentes.includes(a) ? "disabled" : ""}>${a}${presentes.includes(a) ? " ✓" : ""}</option>`)
-      .join("");
+    const opciones  = alumnos.map(a =>
+      `<option value="${a}" ${presentes.includes(a) ? "disabled" : ""}>${a}${presentes.includes(a) ? " ✓" : ""}</option>`
+    ).join("");
 
     body.innerHTML = `
       <div class="form-group">
@@ -79,7 +73,7 @@ function renderFormAlumno(claseId, alumnos, expira) {
           ${opciones}
         </select>
       </div>
-      <button class="btn-big" id="btn-marcar" onclick="marcarPresente('${claseId}')" disabled>
+      <button class="btn-big" id="btn-marcar" onclick="marcarPresente('${fechaId}')" disabled>
         Marcar presente
       </button>
       <div id="scan-msg"></div>
@@ -87,26 +81,25 @@ function renderFormAlumno(claseId, alumnos, expira) {
         ${presentes.length} de ${alumnos.length} alumnos registrados
       </div>
     `;
-
     document.getElementById("alumno-sel").addEventListener("change", e => {
       document.getElementById("btn-marcar").disabled = !e.target.value;
     });
   });
 }
 
-function marcarPresente(claseId) {
-  const sel = document.getElementById("alumno-sel");
+function marcarPresente(fechaId) {
+  const sel    = document.getElementById("alumno-sel");
   const nombre = sel.value;
   if (!nombre) return;
 
-  const btn = document.getElementById("btn-marcar");
-  btn.disabled = true;
+  const btn  = document.getElementById("btn-marcar");
+  btn.disabled  = true;
   btn.textContent = "Registrando...";
 
   const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-  const key = nombre.replace(/\s+/g, "_").toLowerCase();
+  const key  = nombre.replace(/\s+/g, "_").toLowerCase();
 
-  db.ref(`presentes/${claseId}/${key}`).set({ nombre, hora, timestamp: Date.now() })
+  db.ref(`presentes/${fechaId}/${key}`).set({ nombre, hora, timestamp: Date.now() })
     .then(() => {
       document.getElementById("scan-msg").innerHTML =
         `<div class="alert-success">¡Presencia registrada! · ${hora}</div>`;
@@ -115,7 +108,7 @@ function marcarPresente(claseId) {
     .catch(() => {
       document.getElementById("scan-msg").innerHTML =
         `<div class="alert-error">Error al registrar. Intentá de nuevo.</div>`;
-      btn.disabled = false;
+      btn.disabled    = false;
       btn.textContent = "Marcar presente";
     });
 }
@@ -136,7 +129,7 @@ function renderPanel() {
 
       <div class="tabs">
         <button class="tab active" onclick="showTab('tab-alumnos', this)">Alumnos</button>
-        <button class="tab" onclick="showTab('tab-clase', this)">Nueva clase</button>
+        <button class="tab" onclick="showTab('tab-qr', this)">Generar QR</button>
         <button class="tab" onclick="showTab('tab-registro', this)">Registro</button>
       </div>
 
@@ -156,14 +149,10 @@ function renderPanel() {
         </div>
       </div>
 
-      <!-- TAB: Nueva clase -->
-      <div id="tab-clase" class="tab-content">
+      <!-- TAB: Generar QR -->
+      <div id="tab-qr" class="tab-content">
         <div class="card">
-          <h2 class="card-title">Configurar clase</h2>
-          <div class="form-group">
-            <label class="form-label">Materia</label>
-            <input id="inp-materia" type="text" class="inp" placeholder="ej: Matemática" />
-          </div>
+          <h2 class="card-title">Generar QR del día</h2>
           <div class="form-group">
             <label class="form-label">Fecha</label>
             <input id="inp-fecha" type="date" class="inp" />
@@ -178,11 +167,11 @@ function renderPanel() {
               <option value="30">30 minutos</option>
             </select>
           </div>
-          <button class="btn-primary" onclick="generarClase()">Generar QR</button>
+          <button class="btn-primary" onclick="generarQR()">Generar QR</button>
         </div>
 
         <div id="qr-card" class="card" style="display:none;">
-          <h2 class="card-title">Código QR listo</h2>
+          <h2 class="card-title" id="qr-titulo"></h2>
           <div class="qr-center">
             <div id="qr-box" style="background:white;padding:16px;border-radius:8px;border:1px solid #e5e7eb;display:inline-block;"></div>
           </div>
@@ -196,10 +185,10 @@ function renderPanel() {
 
       <!-- TAB: Registro -->
       <div id="tab-registro" class="tab-content">
-        <div id="reg-select-clase" class="card">
-          <h2 class="card-title">Seleccioná una clase</h2>
-          <select id="sel-clase" class="form-select" onchange="cargarRegistro(this.value)">
-            <option value="">— Elegí una clase —</option>
+        <div class="card">
+          <h2 class="card-title">Seleccioná una fecha</h2>
+          <select id="sel-fecha" class="form-select" onchange="cargarRegistro(this.value)">
+            <option value="">— Elegí una fecha —</option>
           </select>
         </div>
         <div id="reg-stats" style="display:none;">
@@ -211,9 +200,7 @@ function renderPanel() {
           <div class="card">
             <div class="card-title-row">
               <h2 class="card-title" style="margin:0">Presentes</h2>
-              <div class="row-gap">
-                <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
-              </div>
+              <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
             </div>
             <ul id="lista-presentes" class="present-list"></ul>
           </div>
@@ -227,12 +214,11 @@ function renderPanel() {
     </div>
   `;
 
-  // Set today's date
   const hoy = new Date().toISOString().split("T")[0];
   document.getElementById("inp-fecha").value = hoy;
 
   loadAlumnosFromDB();
-  loadClasesSelect();
+  loadFechasSelect();
 }
 
 // ── Tabs ──────────────────────────────────────────────────
@@ -241,6 +227,7 @@ function showTab(id, btn) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   btn.classList.add("active");
+  if (id === "tab-registro") loadFechasSelect();
 }
 
 // ── Alumnos ───────────────────────────────────────────────
@@ -260,7 +247,7 @@ function saveAlumnos() {
 }
 
 function addAlumno() {
-  const inp = document.getElementById("inp-alumno");
+  const inp    = document.getElementById("inp-alumno");
   const nombre = inp.value.trim();
   if (!nombre || alumnos.includes(nombre)) { inp.value = ""; return; }
   alumnos.push(nombre);
@@ -303,72 +290,65 @@ function cargarEjemplo() {
   saveAlumnos();
 }
 
-// ── Clase / QR ────────────────────────────────────────────
-let claseActualId = null;
-
-function generarClase() {
-  const materia = document.getElementById("inp-materia").value.trim();
+// ── QR por fecha ──────────────────────────────────────────
+function generarQR() {
   const fecha   = document.getElementById("inp-fecha").value;
   const minutos = parseInt(document.getElementById("inp-tiempo").value);
 
-  if (!materia || !fecha) { alert("Completá materia y fecha"); return; }
+  if (!fecha) { alert("Seleccioná una fecha"); return; }
   if (alumnos.length === 0) { alert("Primero cargá los alumnos en la pestaña Alumnos"); return; }
 
-  const claseId = `${fecha}_${materia.replace(/\s+/g,"_").toLowerCase()}_${Date.now()}`;
+  const fechaId = fecha; // usamos la fecha directamente como ID: "2026-03-27"
   const expira  = minutos > 0 ? Date.now() + minutos * 60000 : null;
 
   const alumnosObj = {};
   alumnos.forEach((a, i) => alumnosObj[i] = a);
 
-  db.ref("clases/" + claseId).set({ materia, fecha, expira, alumnos: alumnosObj })
+  db.ref("fechas/" + fechaId).set({ fecha, expira, alumnos: alumnosObj })
     .then(() => {
-      claseActualId = claseId;
-      const url = `${location.origin}${location.pathname}?scan=1&clase=${claseId}`;
+      const url = `${location.origin}${location.pathname}?scan=1&fecha=${fechaId}`;
+      document.getElementById("qr-titulo").textContent = `QR — ${formatearFecha(fecha)}`;
       document.getElementById("qr-card").style.display = "block";
       const box = document.getElementById("qr-box");
       box.innerHTML = "";
       new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
-      loadClasesSelect();
+      loadFechasSelect();
     });
 }
 
 // ── Registro ──────────────────────────────────────────────
 let regListener = null;
 
-function loadClasesSelect() {
-  db.ref("clases").once("value", snap => {
-    const sel = document.getElementById("sel-clase");
+function loadFechasSelect() {
+  db.ref("fechas").once("value", snap => {
+    const sel    = document.getElementById("sel-fecha");
     if (!sel) return;
-    const clases = snap.val() || {};
-    const keys = Object.keys(clases).sort().reverse();
-    sel.innerHTML = `<option value="">— Elegí una clase —</option>` +
-      keys.map(k => {
-        const c = clases[k];
-        return `<option value="${k}">${c.materia} · ${c.fecha}</option>`;
-      }).join("");
+    const fechas = snap.val() || {};
+    const keys   = Object.keys(fechas).sort().reverse();
+    sel.innerHTML = `<option value="">— Elegí una fecha —</option>` +
+      keys.map(k => `<option value="${k}">${formatearFecha(k)}</option>`).join("");
   });
 }
 
-function cargarRegistro(claseId) {
-  if (!claseId) { document.getElementById("reg-stats").style.display = "none"; return; }
+function cargarRegistro(fechaId) {
+  if (!fechaId) { document.getElementById("reg-stats").style.display = "none"; return; }
   if (regListener) regListener.off();
-
   document.getElementById("reg-stats").style.display = "block";
 
-  db.ref("clases/" + claseId).once("value", snap => {
-    const clase = snap.val();
-    const totalAlumnos = clase.alumnos ? Object.values(clase.alumnos) : [];
+  db.ref("fechas/" + fechaId).once("value", snap => {
+    const datos        = snap.val();
+    const totalAlumnos = datos.alumnos ? Object.values(datos.alumnos) : [];
 
-    regListener = db.ref("presentes/" + claseId);
+    regListener = db.ref("presentes/" + fechaId);
     regListener.on("value", snap => {
-      const pObj = snap.val() || {};
-      const presentes = Object.values(pObj).sort((a,b) => a.timestamp - b.timestamp);
-      const nombresPresentes = presentes.map(p => p.nombre);
-      const ausentes = totalAlumnos.filter(a => !nombresPresentes.includes(a));
+      const pObj     = snap.val() || {};
+      const presentes = Object.values(pObj).sort((a, b) => a.timestamp - b.timestamp);
+      const nombresP  = presentes.map(p => p.nombre);
+      const ausentes  = totalAlumnos.filter(a => !nombresP.includes(a));
 
-      document.getElementById("s-total").textContent = totalAlumnos.length;
+      document.getElementById("s-total").textContent     = totalAlumnos.length;
       document.getElementById("s-presentes").textContent = presentes.length;
-      document.getElementById("s-ausentes").textContent = ausentes.length;
+      document.getElementById("s-ausentes").textContent  = ausentes.length;
 
       document.getElementById("lista-presentes").innerHTML = presentes.length === 0
         ? `<li class="empty-hint">Ningún alumno registrado aún</li>`
@@ -380,8 +360,7 @@ function cargarRegistro(claseId) {
         ? `<li class="empty-hint">Todos presentes</li>`
         : ausentes.map(a => `<li><span>${a}</span></li>`).join("");
 
-      // Guardar para export
-      window._exportData = { clase, presentes, ausentes, totalAlumnos };
+      window._exportData = { fecha: fechaId, presentes, ausentes, totalAlumnos };
     });
   });
 }
@@ -397,7 +376,17 @@ function exportCSV() {
   const blob = new Blob([csv], { type: "text/csv" });
   const url  = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.href = url;
-  link.download = `asistencia_${d.clase.materia}_${d.clase.fecha}.csv`;
+  link.href     = url;
+  link.download = `asistencia_${d.fecha}.csv`;
   link.click();
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function formatearFecha(fechaStr) {
+  // "2026-03-27" → "Jueves 27 de Marzo 2026"
+  const [y, m, d] = fechaStr.split("-").map(Number);
+  const dias  = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const fecha = new Date(y, m - 1, d);
+  return `${dias[fecha.getDay()]} ${d} de ${meses[m - 1]} ${y}`;
 }
