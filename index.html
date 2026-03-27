@@ -1,99 +1,19 @@
-/* ── Reset ── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f4; color: #1c1c1c; font-size: 15px; }
-input, select, button { font-family: inherit; font-size: 14px; }
-
-/* ── Panel preceptor ── */
-.panel-wrap { max-width: 680px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
-.panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.5rem; }
-.panel-title  { font-size: 22px; font-weight: 600; color: #1c1c1c; }
-.panel-sub    { font-size: 13px; color: #6b7280; margin-top: 3px; }
-
-/* ── Tabs ── */
-.tabs { display: flex; gap: 6px; margin-bottom: 1.25rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0; }
-.tab  { padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 14px; color: #6b7280; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
-.tab.active  { color: #111; border-bottom-color: #111; font-weight: 500; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* ── Cards ── */
-.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 1rem; color: #1c1c1c; }
-.card-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-
-/* ── Inputs ── */
-.inp { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #1c1c1c; outline: none; transition: border .15s; }
-.inp:focus { border-color: #6366f1; }
-.form-select { width: 100%; padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; color: #1c1c1c; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
-.form-group { margin-bottom: 1rem; }
-.form-label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 5px; }
-
-/* ── Buttons ── */
-.btn-primary { padding: 9px 18px; background: #111; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; white-space: nowrap; transition: opacity .15s; }
-.btn-primary:hover { opacity: .85; }
-.btn-outline  { padding: 8px 16px; background: #fff; color: #111; border: 1px solid #d1d5db; border-radius: 8px; cursor: pointer; font-size: 13px; white-space: nowrap; transition: background .15s; }
-.btn-outline:hover { background: #f9fafb; }
-.btn-outline.sm { padding: 6px 12px; font-size: 12px; }
-.btn-big { width: 100%; padding: 14px; background: #111; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; margin-top: 12px; transition: opacity .15s; }
-.btn-big:disabled { opacity: .35; cursor: not-allowed; }
-.btn-big:hover:not(:disabled) { opacity: .85; }
-
-/* ── Layout helpers ── */
-.row-gap  { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
-.row-gap:last-child { margin-bottom: 0; }
-
-/* ── Tags ── */
-.tag-list   { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; min-height: 32px; }
-.tag        { display: inline-flex; align-items: center; gap: 6px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 20px; padding: 4px 10px; font-size: 13px; }
-.tag button { background: none; border: none; cursor: pointer; color: #9ca3af; font-size: 15px; line-height: 1; padding: 0 2px; }
-.tag button:hover { color: #ef4444; }
-.empty-hint { font-size: 13px; color: #9ca3af; }
-
-/* ── Stats ── */
-.stats-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1rem; }
-.stat-card   { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem; text-align: center; }
-.stat-card.green { border-color: #bbf7d0; background: #f0fdf4; }
-.stat-card.red   { border-color: #fecaca; background: #fef2f2; }
-.stat-num    { font-size: 28px; font-weight: 700; color: #111; }
-.stat-card.green .stat-num { color: #15803d; }
-.stat-card.red   .stat-num { color: #dc2626; }
-.stat-lbl    { font-size: 12px; color: #6b7280; margin-top: 2px; }
-
-/* ── Present list ── */
-.present-list { list-style: none; }
-.present-list li { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
-.present-list li:last-child { border-bottom: none; }
-.red-list li { color: #6b7280; }
-.badge-hora { font-size: 12px; background: #f3f4f6; border-radius: 20px; padding: 3px 10px; color: #374151; }
-
-/* ── QR ── */
-.qr-center { display: flex; justify-content: center; margin: 1rem 0; }
-.qr-hint   { font-size: 13px; color: #6b7280; text-align: center; line-height: 1.5; }
-
-/* ── Vista alumno (phone) ── */
-.phone-wrap   { max-width: 400px; margin: 2rem auto; padding: 1rem; }
-.phone-header { text-align: center; margin-bottom: 1.5rem; }
-.logo-pill    { display: inline-block; background: #111; color: #fff; font-size: 12px; font-weight: 600; padding: 4px 14px; border-radius: 20px; margin-bottom: 10px; letter-spacing: .02em; }
-.phone-title  { font-size: 22px; font-weight: 700; color: #111; }
-.phone-sub    { font-size: 13px; color: #6b7280; margin-top: 6px; line-height: 1.4; }
-.phone-body   { background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; padding: 1.5rem; }
-.presentes-count { text-align: center; font-size: 13px; color: #6b7280; margin-top: 1rem; }
-
-/* ── Alerts ── */
-.alert-success { margin-top: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; border-radius: 8px; padding: 12px 16px; font-size: 14px; font-weight: 500; text-align: center; }
-.alert-error   { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 12px 16px; font-size: 14px; text-align: center; margin-top: 12px; }
-
-/* ── Print ── */
-@media print {
-  .tabs, .panel-header, button, .card-title-row button { display: none !important; }
-  body { background: white; }
-  .card { border: none; box-shadow: none; }
-  #qr-card { display: block !important; }
-}
-
-/* ── Mobile ── */
-@media (max-width: 480px) {
-  .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .stat-num { font-size: 22px; }
-  .panel-wrap { padding: 1rem .75rem 3rem; }
-}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Asistencia QR · IFD N°12</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Detecta si es vista alumno (?scan=1) o panel preceptor -->
+  </div>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
