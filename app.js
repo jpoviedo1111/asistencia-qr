@@ -11,7 +11,6 @@ const isScan  = params.get("scan") === "1";
 
 window.addEventListener("DOMContentLoaded", () => {
   if (isScan) {
-    // Fecha automática del momento del escaneo
     const hoy = getFechaHoy();
     renderVistaAlumno(hoy);
   } else {
@@ -36,8 +35,25 @@ function formatearFecha(fechaStr) {
   return `${dias[fecha.getDay()]} ${d} de ${meses[m - 1]} ${y}`;
 }
 
+// ── Restricción por dispositivo ───────────────────────────
+function getDeviceKey(fechaId) {
+  return `asistencia_${fechaId}`;
+}
+
+function yaMarcoHoy(fechaId) {
+  return localStorage.getItem(getDeviceKey(fechaId)) !== null;
+}
+
+function guardarMarcaDispositivo(fechaId, nombre) {
+  localStorage.setItem(getDeviceKey(fechaId), nombre);
+}
+
+function getNombreGuardado(fechaId) {
+  return localStorage.getItem(getDeviceKey(fechaId));
+}
+
 // ══════════════════════════════════════════════════════════
-//  VISTA ALUMNO  (se abre al escanear el QR)
+//  VISTA ALUMNO
 // ══════════════════════════════════════════════════════════
 function renderVistaAlumno(fechaId) {
   const app = document.getElementById("app");
@@ -50,12 +66,29 @@ function renderVistaAlumno(fechaId) {
         <p class="phone-sub">${CURSO} · Turno ${TURNO}</p>
       </div>
       <div id="scan-body" class="phone-body">
-        <p style="text-align:center;color:#6b7280;font-size:14px;">Cargando lista...</p>
+        <p style="text-align:center;color:#6b7280;font-size:14px;">Cargando...</p>
       </div>
     </div>
   `;
 
-  // Crear el registro del día si no existe, y cargar alumnos
+  // Verificar si ya marcó hoy desde este celular
+  if (yaMarcoHoy(fechaId)) {
+    const nombre = getNombreGuardado(fechaId);
+    document.getElementById("scan-body").innerHTML = `
+      <div class="alert-success" style="text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">✓</div>
+        <div style="font-size:16px;font-weight:600;">¡Ya registraste tu presencia hoy!</div>
+        <div style="margin-top:8px;font-size:14px;opacity:0.8;">${nombre}</div>
+        <div style="margin-top:4px;font-size:13px;opacity:0.7;">${formatearFecha(fechaId)}</div>
+      </div>
+      <p style="text-align:center;font-size:13px;color:#9ca3af;margin-top:1rem;">
+        Solo se puede registrar una vez por día desde este dispositivo.
+      </p>
+    `;
+    return;
+  }
+
+  // Cargar alumnos y mostrar formulario
   db.ref("alumnos").once("value", snap => {
     const alumnos = snap.val() ? Object.values(snap.val()) : [];
 
@@ -65,13 +98,12 @@ function renderVistaAlumno(fechaId) {
       return;
     }
 
-    // Crear el día automáticamente si no existe
+    // Crear registro del día si no existe
     const alumnosObj = {};
     alumnos.forEach((a, i) => alumnosObj[i] = a);
 
     db.ref("fechas/" + fechaId).once("value", snapFecha => {
       if (!snapFecha.val()) {
-        // Primera vez que se escanea hoy: crear el registro del día
         db.ref("fechas/" + fechaId).set({ fecha: fechaId, alumnos: alumnosObj });
       }
       renderFormAlumno(fechaId, alumnos);
@@ -113,6 +145,12 @@ function marcarPresente(fechaId) {
   const nombre = sel.value;
   if (!nombre) return;
 
+  // Verificar de nuevo por si acaso
+  if (yaMarcoHoy(fechaId)) {
+    renderVistaAlumno(fechaId);
+    return;
+  }
+
   const btn = document.getElementById("btn-marcar");
   btn.disabled    = true;
   btn.textContent = "Registrando...";
@@ -122,9 +160,20 @@ function marcarPresente(fechaId) {
 
   db.ref(`presentes/${fechaId}/${key}`).set({ nombre, hora, timestamp: Date.now() })
     .then(() => {
-      document.getElementById("scan-msg").innerHTML =
-        `<div class="alert-success">¡Presencia registrada! · ${hora}</div>`;
-      btn.textContent = "Registrado";
+      // Guardar en el dispositivo
+      guardarMarcaDispositivo(fechaId, nombre);
+
+      document.getElementById("scan-body").innerHTML = `
+        <div class="alert-success" style="text-align:center;">
+          <div style="font-size:40px;margin-bottom:8px;">✓</div>
+          <div style="font-size:17px;font-weight:600;">¡Presencia registrada!</div>
+          <div style="margin-top:10px;font-size:15px;">${nombre}</div>
+          <div style="margin-top:4px;font-size:13px;opacity:0.8;">${formatearFecha(fechaId)} · ${hora}</div>
+        </div>
+        <p style="text-align:center;font-size:13px;color:#9ca3af;margin-top:1rem;">
+          Ya podés cerrar esta página.
+        </p>
+      `;
     })
     .catch(() => {
       document.getElementById("scan-msg").innerHTML =
@@ -175,8 +224,8 @@ function renderPanel() {
         <div class="card">
           <h2 class="card-title">Código QR del curso</h2>
           <p style="font-size:14px;color:#6b7280;margin-bottom:1rem;">
-            Este QR es permanente. Imprimilo o guardalo una sola vez. 
-            Cada vez que un alumno lo escanea, se registra automáticamente con la fecha del día.
+            Este QR es permanente. Imprimilo o colgalo en el aula. 
+            Cada alumno solo puede registrarse <strong>una vez por día</strong> desde su celular.
           </p>
           <div class="qr-center">
             <div id="qr-box" style="background:white;padding:16px;border-radius:8px;border:1px solid #e5e7eb;display:inline-block;"></div>
@@ -215,7 +264,6 @@ function renderPanel() {
           </div>
         </div>
       </div>
-
     </div>
   `;
 
@@ -224,7 +272,6 @@ function renderPanel() {
   loadFechasSelect();
 }
 
-// ── QR permanente ─────────────────────────────────────────
 function generarQRPermanente() {
   const url = `${location.origin}${location.pathname}?scan=1`;
   const box = document.getElementById("qr-box");
@@ -233,7 +280,6 @@ function generarQRPermanente() {
   new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 }
 
-// ── Tabs ──────────────────────────────────────────────────
 function showTab(id, btn) {
   document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
