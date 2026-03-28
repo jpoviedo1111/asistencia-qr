@@ -242,7 +242,6 @@ function renderPanel() {
               <h2 class="card-title" style="margin:0">Presentes</h2>
               <div class="row-gap" style="margin:0">
                 <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
-                <button class="btn-outline sm" id="btn-planilla" onclick="exportarPlanillaCompleta()">Planilla Excel</button>
                 <button class="btn-drive sm" id="btn-drive" onclick="exportarADrive()">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:5px;vertical-align:middle"><path d="M4.5 20.5L9 12.5L2 8L4.5 20.5Z" fill="#4285F4"/><path d="M19.5 20.5L15 12.5L22 8L19.5 20.5Z" fill="#FBBC05"/><path d="M12 3L9 12.5H15L12 3Z" fill="#34A853"/><path d="M4.5 20.5H19.5L15 12.5H9L4.5 20.5Z" fill="#EA4335"/></svg>
                   Subir a Drive
@@ -534,100 +533,246 @@ function setDriveMsg(msg, tipo) {
   el.innerHTML = `<span style="font-size:13px;color:${color};">${msg}</span>`;
 }
 
+
 // ══════════════════════════════════════════════════════════
-//  EXPORTAR PLANILLA EXCEL COMPLETA (SheetJS)
+//  EXPORTAR PLANILLA EXCEL PROFESIONAL (SheetJS)
 // ══════════════════════════════════════════════════════════
 async function exportarPlanillaCompleta() {
   const btn = document.getElementById("btn-planilla");
   if (btn) { btn.disabled = true; btn.textContent = "Generando..."; }
 
   try {
-    // Cargar todos los datos de Firebase
     const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
       db.ref("fechas").once("value"),
       db.ref("presentes").once("value"),
       db.ref("alumnos").once("value")
     ]);
 
-    const fechas    = fechasSnap.val()    || {};
-    const presentes = presentesSnap.val() || {};
-    const alumnosObj= alumnosSnap.val()   || {};
-    const alumnos   = Object.values(alumnosObj);
-
-    const XLSX = window.XLSX;
-    const wb   = XLSX.utils.book_new();
+    const fechas     = fechasSnap.val()    || {};
+    const presentes  = presentesSnap.val() || {};
+    const alumnosObj = alumnosSnap.val()   || {};
+    const alumnos    = Object.values(alumnosObj);
+    const XLSX       = window.XLSX;
+    const wb         = XLSX.utils.book_new();
 
     const meses = [
       [1,"Enero"],[2,"Febrero"],[3,"Marzo"],[4,"Abril"],
       [5,"Mayo"],[6,"Junio"],[7,"Julio"],[8,"Agosto"],
       [9,"Septiembre"],[10,"Octubre"],[11,"Noviembre"],[12,"Diciembre"]
     ];
+    const dayNames = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
+    const YEAR = 2026;
 
-    for (const [mNum, mNombre] of meses) {
-      const diasEnMes = new Date(2026, mNum, 0).getDate();
-      
-      // Headers
-      const header1 = [`IFD N° 12 - MEDIA  |  REGISTRO DE ASISTENCIA 2026  |  ${mNombre.toUpperCase()}`];
-      const header2 = ["CURSO:", "", "3° 6°", "", "TURNO:", "", "TARDE", "", "PRECEPTOR:", "", "cristina"];
-      const header3 = ["N°", "APELLIDO Y NOMBRE"];
-      const header4 = ["", ""];
-      for (let d = 1; d <= diasEnMes; d++) {
-        const wd = new Date(2026, mNum-1, d).getDay();
-        header3.push(d);
-        header4.push(["Do","Lu","Ma","Mi","Ju","Vi","Sa"][wd]);
-      }
-      header3.push("P","A","T");
-      header4.push("","","");
+    // ── Estilos ───────────────────────────────────────────
+    const S = {
+      hdr:  { font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:11}, fill:{fgColor:{rgb:"1A3A5C"}}, alignment:{horizontal:"center",vertical:"center"}, border:outerBorder() },
+      sub:  { font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:9},  fill:{fgColor:{rgb:"2E6DA4"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      meta: { font:{name:"Calibri",bold:true,color:{rgb:"1A3A5C"},sz:8},  fill:{fgColor:{rgb:"D6E4F0"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      body: { font:{name:"Calibri",sz:8,color:{rgb:"1A1A1A"}},            fill:{fgColor:{rgb:"FFFFFF"}}, alignment:{horizontal:"left",  vertical:"center"}, border:thinBorder() },
+      bodyAlt:{ font:{name:"Calibri",sz:8,color:{rgb:"1A1A1A"}},          fill:{fgColor:{rgb:"F2F7FB"}}, alignment:{horizontal:"left",  vertical:"center"}, border:thinBorder() },
+      num:  { font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},  fill:{fgColor:{rgb:"D6E4F0"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      wkd:  { font:{name:"Calibri",sz:8,color:{rgb:"999999"}},            fill:{fgColor:{rgb:"ECECEC"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      pres: { font:{name:"Calibri",bold:true,sz:8,color:{rgb:"155724"}},  fill:{fgColor:{rgb:"D4EDDA"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      aus:  { font:{name:"Calibri",bold:true,sz:8,color:{rgb:"721C24"}},  fill:{fgColor:{rgb:"F8D7DA"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      tot:  { font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},  fill:{fgColor:{rgb:"EAF0FB"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+      dayHdr:{ font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:8}, fill:{fgColor:{rgb:"2E6DA4"}}, alignment:{horizontal:"center",vertical:"center"}, border:thinBorder() },
+    };
 
-      const rows = [header1, header2, header3, header4];
-
-      // Filas de alumnos
-      for (let i = 0; i < alumnos.length; i++) {
-        const nombre = alumnos[i];
-        const row    = [i+1, nombre];
-        let totalP   = 0, totalA = 0;
-
-        for (let d = 1; d <= diasEnMes; d++) {
-          const wd      = new Date(2026, mNum-1, d).getDay();
-          if (wd === 0 || wd === 6) { row.push("-"); continue; }
-
-          const fechaId = `2026-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-          const presDay = presentes[fechaId] ? Object.values(presentes[fechaId]) : [];
-          const nombresP= presDay.map(p => p.nombre.trim().toLowerCase());
-          const normNombre = nombre.trim().toLowerCase();
-          const estaPresente = nombresP.some(p =>
-            p === normNombre || p.includes(normNombre.split(" ")[0]) || normNombre.includes(p.split(" ")[0])
-          );
-
-          // Solo marcar si hay datos de ese día en Firebase
-          if (fechas[fechaId]) {
-            row.push(estaPresente ? "P" : "A");
-            if (estaPresente) totalP++; else totalA++;
-          } else {
-            row.push("");
-          }
-        }
-        row.push(totalP, totalA, totalP + totalA);
-        rows.push(row);
-      }
-
-      // Filas vacías extra
-      for (let i = alumnos.length; i < 24; i++) {
-        const row = [i+1, ""];
-        for (let d = 0; d < diasEnMes + 3; d++) row.push("");
-        rows.push(row);
-      }
-
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...Array(diasEnMes).fill({ wch: 4 }), { wch: 5 }, { wch: 5 }, { wch: 5 }];
-      XLSX.utils.book_append_sheet(wb, ws, mNombre);
+    function thinBorder() {
+      const s = {style:"thin",color:{rgb:"B0BEC5"}};
+      return {top:s,bottom:s,left:s,right:s};
+    }
+    function outerBorder() {
+      const s = {style:"medium",color:{rgb:"1A3A5C"}};
+      return {top:s,bottom:s,left:s,right:s};
     }
 
-    XLSX.writeFile(wb, `Asistencia_IFD12_3ro6ta_2026.xlsx`);
+    // ── Construir hoja mes ────────────────────────────────
+    function buildMonthSheet(monthNum, monthName) {
+      const daysInMonth = new Date(YEAR, monthNum, 0).getDate();
+      const dayWd = {};
+      for (let d=1; d<=daysInMonth; d++) dayWd[d] = new Date(YEAR, monthNum-1, d).getDay();
+      // 0=Dom,1=Lun...6=Sab → convert to Mon=0..Sun=6
+      const toMon = wd => (wd + 6) % 7;
+
+      const ws = {};
+      const merges = [];
+      const colWidths = [];
+
+      function setCell(r, c, v, style) {
+        const addr = XLSX.utils.encode_cell({r, c});
+        ws[addr] = { v, s: style };
+        if (typeof v === "string" && v.startsWith("=")) ws[addr].f = v.slice(1);
+      }
+
+      // Row 0: title (merge all)
+      const totalCols = daysInMonth + 5; // N° + name + days + P,A,T
+      setCell(0, 0, `INSTITUCIÓN DE FORMACIÓN DOCENTE N° 12  ·  REGISTRO DE ASISTENCIA ${YEAR}`, S.hdr);
+      merges.push({s:{r:0,c:0}, e:{r:0,c:totalCols-1}});
+
+      // Row 1: subtitle
+      setCell(1, 0, `${monthName.toUpperCase()}  ·  CURSO: 3° 6°  ·  TURNO: TARDE  ·  PRECEPTOR/A: Cristina`, S.sub);
+      merges.push({s:{r:1,c:0}, e:{r:1,c:totalCols-1}});
+
+      // Row 2: day numbers header
+      setCell(2, 0, "N°",   S.dayHdr);
+      setCell(2, 1, "APELLIDO Y NOMBRE", S.dayHdr);
+      for (let d=1; d<=daysInMonth; d++) {
+        const wd = toMon(dayWd[d]);
+        setCell(2, d+1, d, wd>=5 ? S.wkd : S.dayHdr);
+      }
+      setCell(2, daysInMonth+2, "P", {...S.dayHdr, fill:{fgColor:{rgb:"1A3A5C"}}});
+      setCell(2, daysInMonth+3, "A", {...S.dayHdr, fill:{fgColor:{rgb:"1A3A5C"}}});
+      setCell(2, daysInMonth+4, "T", {...S.dayHdr, fill:{fgColor:{rgb:"1A3A5C"}}});
+
+      // Row 3: day names
+      setCell(3, 0, "", S.meta); setCell(3, 1, "", S.meta);
+      for (let d=1; d<=daysInMonth; d++) {
+        const wd = toMon(dayWd[d]);
+        setCell(3, d+1, dayNames[wd], wd>=5 ? S.wkd : S.meta);
+      }
+      for (let o=0; o<3; o++) setCell(3, daysInMonth+2+o, "", S.meta);
+
+      // Rows 4+: students
+      for (let i=0; i<Math.max(alumnos.length, 24); i++) {
+        const r = i + 4;
+        const nombre = alumnos[i] || "";
+        const isAlt  = i % 2 !== 0;
+        const base   = isAlt ? S.bodyAlt : S.body;
+
+        setCell(r, 0, nombre ? i+1 : "", S.num);
+        setCell(r, 1, nombre, base);
+
+        let totalP = 0, totalA = 0;
+
+        for (let d=1; d<=daysInMonth; d++) {
+          const wd      = toMon(dayWd[d]);
+          const fechaId = `${YEAR}-${String(monthNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+
+          if (wd >= 5) {
+            setCell(r, d+1, "-", S.wkd);
+            continue;
+          }
+
+          if (!nombre || !fechas[fechaId]) {
+            setCell(r, d+1, "", {...base, alignment:{horizontal:"center",vertical:"center"}});
+            continue;
+          }
+
+          const presDay   = presentes[fechaId] ? Object.values(presentes[fechaId]) : [];
+          const nombresP  = presDay.map(p => p.nombre.trim().toLowerCase());
+          const normNombre= nombre.trim().toLowerCase();
+          const present   = nombresP.some(p =>
+            p === normNombre ||
+            normNombre.split(" ").some(part => part.length > 2 && p.includes(part))
+          );
+
+          if (present) { setCell(r, d+1, "P", S.pres); totalP++; }
+          else         { setCell(r, d+1, "A", S.aus);  totalA++; }
+        }
+
+        if (nombre) {
+          setCell(r, daysInMonth+2, totalP, S.pres);
+          setCell(r, daysInMonth+3, totalA, S.aus);
+          setCell(r, daysInMonth+4, totalP+totalA, S.tot);
+        } else {
+          for (let o=0; o<3; o++) setCell(r, daysInMonth+2+o, "", S.tot);
+        }
+      }
+
+      // Legend row
+      const legRow = 29;
+      setCell(legRow, 0, "Referencias:", {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}}});
+      setCell(legRow, 1, "P = Presente",  S.pres);
+      setCell(legRow, 2, "A = Ausente",   S.aus);
+      setCell(legRow, 3, "- = Fin de semana", S.wkd);
+
+      // Column widths
+      colWidths.push({wch:5},{wch:28});
+      for (let d=0; d<daysInMonth; d++) colWidths.push({wch:3.5});
+      colWidths.push({wch:5},{wch:5},{wch:5});
+
+      ws["!ref"]    = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:legRow,c:totalCols-1}});
+      ws["!merges"] = merges;
+      ws["!cols"]   = colWidths;
+      ws["!rows"]   = [
+        {hpt:22},{hpt:16},{hpt:16},{hpt:13},
+        ...Array(26).fill({hpt:15})
+      ];
+
+      return ws;
+    }
+
+    // Crear hojas
+    for (const [mNum, mName] of meses) {
+      const ws = buildMonthSheet(mNum, mName);
+      XLSX.utils.book_append_sheet(wb, ws, mName);
+    }
+
+    // ── Hoja resumen simple ───────────────────────────────
+    const wsRes = {};
+    const resMerges = [];
+    function setR(r,c,v,s){ const a=XLSX.utils.encode_cell({r,c}); wsRes[a]={v,s}; }
+
+    const totalResCol = 2 + meses.length*2;
+    setR(0,0,`IFD N°12  ·  RESUMEN ANUAL ${YEAR}  ·  CURSO 3° 6°  ·  TURNO TARDE`, S.hdr);
+    resMerges.push({s:{r:0,c:0},e:{r:0,c:totalResCol+1}});
+    setR(1,0,"N°",S.sub); setR(1,1,"APELLIDO Y NOMBRE",S.sub);
+
+    let resCol = 2;
+    for (const [,mName] of meses) {
+      setR(1,resCol,mName.substring(0,3).toUpperCase(),S.sub);
+      resMerges.push({s:{r:1,c:resCol},e:{r:1,c:resCol+1}});
+      setR(2,resCol,"P",S.pres); setR(2,resCol+1,"A",S.aus);
+      resCol += 2;
+    }
+    setR(1,resCol,"TOTAL P",S.pres); setR(1,resCol+1,"TOTAL A",S.aus);
+    setR(2,resCol,"",S.pres); setR(2,resCol+1,"",S.aus);
+
+    for (let i=0; i<alumnos.length; i++) {
+      const r = i+3;
+      const nombre = alumnos[i];
+      setR(r,0,i+1,S.num); setR(r,1,nombre,i%2===0?S.body:S.bodyAlt);
+      let sumP=0,sumA=0;
+      let c2=2;
+      for (const [mNum,] of meses) {
+        const daysInMonth = new Date(YEAR,mNum,0).getDate();
+        let mP=0,mA=0;
+        for (let d=1;d<=daysInMonth;d++){
+          const wd=(new Date(YEAR,mNum-1,d).getDay()+6)%7;
+          if(wd>=5)continue;
+          const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+          if(!fechas[fid])continue;
+          const pd=presentes[fid]?Object.values(presentes[fid]):[];
+          const np=pd.map(p=>p.nombre.trim().toLowerCase());
+          const nn=nombre.trim().toLowerCase();
+          const pres=np.some(p=>p===nn||nn.split(" ").some(pt=>pt.length>2&&p.includes(pt)));
+          if(pres)mP++; else mA++;
+        }
+        setR(r,c2,mP,S.pres); setR(r,c2+1,mA,S.aus);
+        sumP+=mP; sumA+=mA; c2+=2;
+      }
+      setR(r,c2,sumP,{...S.pres,font:{name:"Calibri",bold:true,sz:9,color:{rgb:"155724"}}});
+      setR(r,c2+1,sumA,{...S.aus,font:{name:"Calibri",bold:true,sz:9,color:{rgb:"721C24"}}});
+    }
+
+    const resColWidths=[{wch:5},{wch:28},...Array(meses.length*2).fill({wch:6}),{wch:7},{wch:7}];
+    wsRes["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:alumnos.length+3,c:totalResCol+1}});
+    wsRes["!merges"]=resMerges;
+    wsRes["!cols"]=resColWidths;
+    wsRes["!rows"]=[{hpt:22},{hpt:16},{hpt:14},...Array(alumnos.length+1).fill({hpt:15})];
+
+    XLSX.utils.book_append_sheet(wb, wsRes, "RESUMEN ANUAL");
+
+    // Reordenar — resumen al principio
+    wb.SheetNames = ["RESUMEN ANUAL", ...meses.map(([,n])=>n)];
+
+    XLSX.writeFile(wb, `Asistencia_IFD12_3ro6ta_${YEAR}.xlsx`);
+
   } catch(e) {
     console.error(e);
     alert("Error al generar la planilla: " + e.message);
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = "Descargar planilla Excel"; }
+  if (btn) { btn.disabled=false; btn.textContent="Planilla Excel"; }
 }
