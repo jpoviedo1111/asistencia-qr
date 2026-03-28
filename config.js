@@ -16,6 +16,5 @@ const db = firebase.database();
 
 // =====================================================
 //  Configuración Google Drive
-//  PASO: Pegá tu Client ID acá cuando lo tengas
 // =====================================================
-window.GDRIVE_CLIENT_ID = "TU_CLIENT_ID";
+window.GDRIVE_CLIENT_ID = "781408242345-r1eilre8tc2i94dv2ughj17jgcikcr35.apps.googleusercontent.com";
