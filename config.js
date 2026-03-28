@@ -1,4 +1,6 @@
-// Configuración Firebase — asistencia-ifd12
+// =====================================================
+//  Configuración Firebase
+// =====================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBz3NQoRkQhUEGUPyHBZruIf-BzhnH3ozg",
   authDomain: "asistencia-ifd12.firebaseapp.com",
@@ -11,3 +13,9 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+// =====================================================
+//  Configuración Google Drive
+//  PASO: Pegá tu Client ID acá cuando lo tengas
+// =====================================================
+window.GDRIVE_CLIENT_ID = "TU_CLIENT_ID";
