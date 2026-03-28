@@ -2,12 +2,22 @@
 //  Asistencia QR · IFD N°12 · 3°6° · Turno Tarde
 // ============================================================
 
-const CURSO = "3° 6°";
+const IFD = "IFD N° 12";
 const TURNO = "Tarde";
-const IFD   = "IFD N° 12";
+const CURSOS = [
+  { id: "3ro6ta", nombre: "3° 6°" },
+  { id: "1ro6ta", nombre: "1° 6°" }
+];
+let CURSO_ACTUAL = localStorage.getItem("curso_activo") || "3ro6ta";
+let CURSO = CURSOS.find(c => c.id === CURSO_ACTUAL)?.nombre || "3° 6°";
 
 const params  = new URLSearchParams(location.search);
 const isScan  = params.get("scan") === "1";
+const cursoParam = params.get("curso");
+if (cursoParam) {
+  CURSO_ACTUAL = cursoParam;
+  CURSO = CURSOS.find(c => c.id === CURSO_ACTUAL)?.nombre || CURSO;
+}
 
 // ── Google Drive config (se completa en config.js) ────────
 // GDRIVE_CLIENT_ID se define en config.js
@@ -91,7 +101,7 @@ function renderVistaAlumno(fechaId) {
     return;
   }
 
-  db.ref("alumnos").once("value", snap => {
+  db.ref("cursos/" + CURSO_ACTUAL + "/alumnos").once("value", snap => {
     const alumnos = snap.val() ? Object.values(snap.val()) : [];
     if (alumnos.length === 0) {
       document.getElementById("scan-body").innerHTML =
@@ -100,9 +110,9 @@ function renderVistaAlumno(fechaId) {
     }
     const alumnosObj = {};
     alumnos.forEach((a, i) => alumnosObj[i] = a);
-    db.ref("fechas/" + fechaId).once("value", snapFecha => {
+    db.ref("cursos/" + CURSO_ACTUAL + "/fechas/" + fechaId).once("value", snapFecha => {
       if (!snapFecha.val()) {
-        db.ref("fechas/" + fechaId).set({ fecha: fechaId, alumnos: alumnosObj });
+        db.ref("cursos/" + CURSO_ACTUAL + "/fechas/" + fechaId).set({ fecha: fechaId, alumnos: alumnosObj });
       }
       renderFormAlumno(fechaId, alumnos);
     });
@@ -110,7 +120,7 @@ function renderVistaAlumno(fechaId) {
 }
 
 function renderFormAlumno(fechaId, alumnos) {
-  db.ref("presentes/" + fechaId).on("value", snap => {
+  db.ref("cursos/" + CURSO_ACTUAL + "/presentes/" + fechaId).on("value", snap => {
     const presentes = snap.val() ? Object.values(snap.val()).map(p => p.nombre) : [];
     const opciones  = alumnos.map(a =>
       `<option value="${a}" ${presentes.includes(a) ? "disabled" : ""}>${a}${presentes.includes(a) ? " ✓" : ""}</option>`
@@ -148,7 +158,7 @@ function marcarPresente(fechaId) {
   const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
   const key  = nombre.replace(/\s+/g, "_").toLowerCase();
 
-  db.ref(`presentes/${fechaId}/${key}`).set({ nombre, hora, timestamp: Date.now() })
+  db.ref(`cursos/${CURSO_ACTUAL}/presentes/${fechaId}/${key}`).set({ nombre, hora, timestamp: Date.now() })
     .then(() => {
       guardarMarcaDispositivo(fechaId, nombre);
       document.getElementById("scan-body").innerHTML = `
@@ -172,6 +182,13 @@ function marcarPresente(fechaId) {
 // ══════════════════════════════════════════════════════════
 //  PANEL PRECEPTOR
 // ══════════════════════════════════════════════════════════
+function cambiarCurso(cursoId) {
+  CURSO_ACTUAL = cursoId;
+  CURSO = CURSOS.find(c => c.id === CURSO_ACTUAL)?.nombre || cursoId;
+  localStorage.setItem("curso_activo", cursoId);
+  renderPanel();
+}
+
 function renderPanel() {
   const app = document.getElementById("app");
   app.innerHTML = `
@@ -179,7 +196,12 @@ function renderPanel() {
       <header class="panel-header">
         <div>
           <h1 class="panel-title">Asistencia QR</h1>
-          <p class="panel-sub">${IFD} · ${CURSO} · Turno ${TURNO}</p>
+          <p class="panel-sub">${IFD} · Turno ${TURNO}</p>
+        </div>
+        <div>
+          <select id="curso-selector" class="form-select" style="width:auto;font-weight:500;" onchange="cambiarCurso(this.value)">
+            ${CURSOS.map(c => `<option value="${c.id}" ${c.id === CURSO_ACTUAL ? 'selected' : ''}>${c.nombre}</option>`).join('')}
+          </select>
         </div>
       </header>
 
@@ -267,7 +289,7 @@ function renderPanel() {
 }
 
 function generarQRPermanente() {
-  const url = `${location.origin}${location.pathname}?scan=1`;
+  const url = `${location.origin}${location.pathname}?scan=1&curso=${CURSO_ACTUAL}`;
   const box = document.getElementById("qr-box");
   if (!box) return;
   box.innerHTML = "";
@@ -287,7 +309,7 @@ function showTab(id, btn) {
 let alumnos = [];
 
 function loadAlumnosFromDB() {
-  db.ref("alumnos").once("value", snap => {
+  db.ref("cursos/" + CURSO_ACTUAL + "/alumnos").once("value", snap => {
     alumnos = snap.val() ? Object.values(snap.val()) : [];
     renderTags();
   });
@@ -296,7 +318,7 @@ function loadAlumnosFromDB() {
 function saveAlumnos() {
   const obj = {};
   alumnos.forEach((a, i) => obj[i] = a);
-  db.ref("alumnos").set(obj);
+  db.ref("cursos/" + CURSO_ACTUAL + "/alumnos").set(obj);
 }
 
 function addAlumno() {
@@ -325,7 +347,7 @@ function renderTags() {
       ).join("");
 }
 
-function limpiarAlumnos() { alumnos = []; renderTags(); db.ref("alumnos").remove(); }
+function limpiarAlumnos() { alumnos = []; renderTags(); db.ref("cursos/" + CURSO_ACTUAL + "/alumnos").remove(); }
 
 function cargarEjemplo() {
   alumnos = [
@@ -344,7 +366,7 @@ let regListener  = null;
 let fechaActual  = null;
 
 function loadFechasSelect() {
-  db.ref("fechas").once("value", snap => {
+  db.ref("cursos/" + CURSO_ACTUAL + "/fechas").once("value", snap => {
     const sel    = document.getElementById("sel-fecha");
     if (!sel) return;
     const fechas = snap.val() || {};
@@ -360,11 +382,11 @@ function cargarRegistro(fechaId) {
   fechaActual = fechaId;
   document.getElementById("reg-stats").style.display = "block";
 
-  db.ref("fechas/" + fechaId).once("value", snap => {
+  db.ref("cursos/" + CURSO_ACTUAL + "/fechas/" + fechaId).once("value", snap => {
     const datos        = snap.val();
     const totalAlumnos = datos.alumnos ? Object.values(datos.alumnos) : [];
 
-    regListener = db.ref("presentes/" + fechaId);
+    regListener = db.ref("cursos/" + CURSO_ACTUAL + "/presentes/" + fechaId);
     regListener.on("value", snap => {
       const pObj      = snap.val() || {};
       const presentes = Object.values(pObj).sort((a, b) => a.timestamp - b.timestamp);
@@ -544,9 +566,9 @@ async function exportarPlanillaCompleta() {
 
   try {
     const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
-      db.ref("fechas").once("value"),
-      db.ref("presentes").once("value"),
-      db.ref("alumnos").once("value")
+      db.ref("cursos/" + CURSO_ACTUAL + "/fechas").once("value"),
+      db.ref("cursos/" + CURSO_ACTUAL + "/presentes").once("value"),
+      db.ref("cursos/" + CURSO_ACTUAL + "/alumnos").once("value")
     ]);
 
     const fechas     = fechasSnap.val()    || {};
