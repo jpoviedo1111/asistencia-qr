@@ -1,5 +1,11 @@
 {
-  "version": 2,
-  "builds": [{ "src": "public/**", "use": "@vercel/static" }],
-  "routes": [{ "src": "/(.*)", "dest": "/public/$1" }]
+  "rules": {
+    "cursos": {
+      "$curso": {
+        "alumnos":  { ".read": true, ".write": true },
+        "fechas":   { ".read": true, ".write": true },
+        "presentes":{ ".read": true, ".write": true }
+      }
+    }
+  }
 }
