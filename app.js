@@ -9,6 +9,11 @@ const IFD   = "IFD N° 12";
 const params  = new URLSearchParams(location.search);
 const isScan  = params.get("scan") === "1";
 
+// ── Google Drive config (se completa en config.js) ────────
+// GDRIVE_CLIENT_ID se define en config.js
+const GDRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+let gdriveToken = null;
+
 window.addEventListener("DOMContentLoaded", () => {
   if (isScan) {
     const hoy = getFechaHoy();
@@ -18,7 +23,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// ── Helpers de fecha ─────────────────────────────────────
+// ── Helpers de fecha ──────────────────────────────────────
 function getFechaHoy() {
   const now = new Date();
   const y   = now.getFullYear();
@@ -35,21 +40,20 @@ function formatearFecha(fechaStr) {
   return `${dias[fecha.getDay()]} ${d} de ${meses[m - 1]} ${y}`;
 }
 
+function getNombreMes(fechaStr) {
+  const [, m] = fechaStr.split("-").map(Number);
+  return ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][m - 1];
+}
+
 // ── Restricción por dispositivo ───────────────────────────
-function getDeviceKey(fechaId) {
-  return `asistencia_${fechaId}`;
-}
-
 function yaMarcoHoy(fechaId) {
-  return localStorage.getItem(getDeviceKey(fechaId)) !== null;
+  return localStorage.getItem("asistencia_" + fechaId) !== null;
 }
-
 function guardarMarcaDispositivo(fechaId, nombre) {
-  localStorage.setItem(getDeviceKey(fechaId), nombre);
+  localStorage.setItem("asistencia_" + fechaId, nombre);
 }
-
 function getNombreGuardado(fechaId) {
-  return localStorage.getItem(getDeviceKey(fechaId));
+  return localStorage.getItem("asistencia_" + fechaId);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -71,7 +75,6 @@ function renderVistaAlumno(fechaId) {
     </div>
   `;
 
-  // Verificar si ya marcó hoy desde este celular
   if (yaMarcoHoy(fechaId)) {
     const nombre = getNombreGuardado(fechaId);
     document.getElementById("scan-body").innerHTML = `
@@ -88,20 +91,15 @@ function renderVistaAlumno(fechaId) {
     return;
   }
 
-  // Cargar alumnos y mostrar formulario
   db.ref("alumnos").once("value", snap => {
     const alumnos = snap.val() ? Object.values(snap.val()) : [];
-
     if (alumnos.length === 0) {
       document.getElementById("scan-body").innerHTML =
         `<div class="alert-error">No hay alumnos cargados. Avisá al preceptor.</div>`;
       return;
     }
-
-    // Crear registro del día si no existe
     const alumnosObj = {};
     alumnos.forEach((a, i) => alumnosObj[i] = a);
-
     db.ref("fechas/" + fechaId).once("value", snapFecha => {
       if (!snapFecha.val()) {
         db.ref("fechas/" + fechaId).set({ fecha: fechaId, alumnos: alumnosObj });
@@ -130,9 +128,7 @@ function renderFormAlumno(fechaId, alumnos) {
         Marcar presente
       </button>
       <div id="scan-msg"></div>
-      <div class="presentes-count">
-        ${presentes.length} de ${alumnos.length} alumnos registrados
-      </div>
+      <div class="presentes-count">${presentes.length} de ${alumnos.length} alumnos registrados</div>
     `;
     document.getElementById("alumno-sel").addEventListener("change", e => {
       document.getElementById("btn-marcar").disabled = !e.target.value;
@@ -143,13 +139,7 @@ function renderFormAlumno(fechaId, alumnos) {
 function marcarPresente(fechaId) {
   const sel    = document.getElementById("alumno-sel");
   const nombre = sel.value;
-  if (!nombre) return;
-
-  // Verificar de nuevo por si acaso
-  if (yaMarcoHoy(fechaId)) {
-    renderVistaAlumno(fechaId);
-    return;
-  }
+  if (!nombre || yaMarcoHoy(fechaId)) return;
 
   const btn = document.getElementById("btn-marcar");
   btn.disabled    = true;
@@ -160,9 +150,7 @@ function marcarPresente(fechaId) {
 
   db.ref(`presentes/${fechaId}/${key}`).set({ nombre, hora, timestamp: Date.now() })
     .then(() => {
-      // Guardar en el dispositivo
       guardarMarcaDispositivo(fechaId, nombre);
-
       document.getElementById("scan-body").innerHTML = `
         <div class="alert-success" style="text-align:center;">
           <div style="font-size:40px;margin-bottom:8px;">✓</div>
@@ -170,9 +158,7 @@ function marcarPresente(fechaId) {
           <div style="margin-top:10px;font-size:15px;">${nombre}</div>
           <div style="margin-top:4px;font-size:13px;opacity:0.8;">${formatearFecha(fechaId)} · ${hora}</div>
         </div>
-        <p style="text-align:center;font-size:13px;color:#9ca3af;margin-top:1rem;">
-          Ya podés cerrar esta página.
-        </p>
+        <p style="text-align:center;font-size:13px;color:#9ca3af;margin-top:1rem;">Ya podés cerrar esta página.</p>
       `;
     })
     .catch(() => {
@@ -219,13 +205,12 @@ function renderPanel() {
         </div>
       </div>
 
-      <!-- TAB: QR permanente -->
+      <!-- TAB: QR -->
       <div id="tab-qr" class="tab-content">
         <div class="card">
           <h2 class="card-title">Código QR del curso</h2>
           <p style="font-size:14px;color:#6b7280;margin-bottom:1rem;">
-            Este QR es permanente. Imprimilo o colgalo en el aula. 
-            Cada alumno solo puede registrarse <strong>una vez por día</strong> desde su celular.
+            QR permanente. Imprimilo y colgalo en el aula. Cada alumno solo puede registrarse <strong>una vez por día</strong>.
           </p>
           <div class="qr-center">
             <div id="qr-box" style="background:white;padding:16px;border-radius:8px;border:1px solid #e5e7eb;display:inline-block;"></div>
@@ -245,6 +230,7 @@ function renderPanel() {
             <option value="">— Elegí una fecha —</option>
           </select>
         </div>
+
         <div id="reg-stats" style="display:none;">
           <div class="stats-grid">
             <div class="stat-card"><div class="stat-num" id="s-total">0</div><div class="stat-lbl">Total</div></div>
@@ -254,8 +240,15 @@ function renderPanel() {
           <div class="card">
             <div class="card-title-row">
               <h2 class="card-title" style="margin:0">Presentes</h2>
-              <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
+              <div class="row-gap" style="margin:0">
+                <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
+                <button class="btn-drive sm" id="btn-drive" onclick="exportarADrive()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:5px;vertical-align:middle"><path d="M4.5 20.5L9 12.5L2 8L4.5 20.5Z" fill="#4285F4"/><path d="M19.5 20.5L15 12.5L22 8L19.5 20.5Z" fill="#FBBC05"/><path d="M12 3L9 12.5H15L12 3Z" fill="#34A853"/><path d="M4.5 20.5H19.5L15 12.5H9L4.5 20.5Z" fill="#EA4335"/></svg>
+                  Subir a Drive
+                </button>
+              </div>
             </div>
+            <div id="drive-msg" style="margin-bottom:8px;"></div>
             <ul id="lista-presentes" class="present-list"></ul>
           </div>
           <div class="card">
@@ -331,11 +324,7 @@ function renderTags() {
       ).join("");
 }
 
-function limpiarAlumnos() {
-  alumnos = [];
-  renderTags();
-  db.ref("alumnos").remove();
-}
+function limpiarAlumnos() { alumnos = []; renderTags(); db.ref("alumnos").remove(); }
 
 function cargarEjemplo() {
   alumnos = [
@@ -350,7 +339,8 @@ function cargarEjemplo() {
 }
 
 // ── Registro ──────────────────────────────────────────────
-let regListener = null;
+let regListener  = null;
+let fechaActual  = null;
 
 function loadFechasSelect() {
   db.ref("fechas").once("value", snap => {
@@ -366,6 +356,7 @@ function loadFechasSelect() {
 function cargarRegistro(fechaId) {
   if (!fechaId) { document.getElementById("reg-stats").style.display = "none"; return; }
   if (regListener) regListener.off();
+  fechaActual = fechaId;
   document.getElementById("reg-stats").style.display = "block";
 
   db.ref("fechas/" + fechaId).once("value", snap => {
@@ -398,18 +389,146 @@ function cargarRegistro(fechaId) {
   });
 }
 
+// ── Exportar CSV ──────────────────────────────────────────
 function exportCSV() {
   const d = window._exportData;
   if (!d) return;
-  let csv = "Nombre,Estado,Hora\n";
-  d.totalAlumnos.forEach(a => {
-    const p = d.presentes.find(x => x.nombre === a);
-    csv += `"${a}","${p ? "Presente" : "Ausente"}","${p ? p.hora : ""}"\n`;
-  });
+  const csv = buildCSV(d);
   const blob = new Blob([csv], { type: "text/csv" });
   const url  = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href     = url;
   link.download = `asistencia_${d.fecha}.csv`;
   link.click();
+}
+
+function buildCSV(d) {
+  let csv = `IFD N°12 · ${CURSO} · Turno ${TURNO}\n`;
+  csv    += `Fecha: ${formatearFecha(d.fecha)}\n\n`;
+  csv    += `Nombre,Estado,Hora\n`;
+  d.totalAlumnos.forEach(a => {
+    const p = d.presentes.find(x => x.nombre === a);
+    csv    += `"${a}","${p ? "Presente" : "Ausente"}","${p ? p.hora : ""}"\n`;
+  });
+  csv += `\nPresentes: ${d.presentes.length} / ${d.totalAlumnos.length}\n`;
+  return csv;
+}
+
+// ══════════════════════════════════════════════════════════
+//  GOOGLE DRIVE
+// ══════════════════════════════════════════════════════════
+function exportarADrive() {
+  const d = window._exportData;
+  if (!d) { alert("Primero seleccioná una fecha con datos"); return; }
+
+  setDriveMsg("Conectando con Google Drive...", "info");
+
+  if (gdriveToken) {
+    subirArchivoDrive(d);
+  } else {
+    autenticarDrive(() => subirArchivoDrive(d));
+  }
+}
+
+function autenticarDrive(callback) {
+  if (!window.GDRIVE_CLIENT_ID || window.GDRIVE_CLIENT_ID === "TU_CLIENT_ID") {
+    setDriveMsg("⚠️ Falta configurar el Client ID de Google. Seguí las instrucciones.", "error");
+    return;
+  }
+
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: window.GDRIVE_CLIENT_ID,
+    scope: GDRIVE_SCOPE,
+    callback: (resp) => {
+      if (resp.error) {
+        setDriveMsg("Error al conectar con Google Drive.", "error");
+        return;
+      }
+      gdriveToken = resp.access_token;
+      callback();
+    }
+  });
+  client.requestAccessToken();
+}
+
+async function subirArchivoDrive(d) {
+  const csv      = buildCSV(d);
+  const nombre   = `Asistencia_${IFD.replace(/\s/g,"")}_${CURSO.replace(/\s/g,"")}_${d.fecha}.csv`;
+  const mes      = getNombreMes(d.fecha);
+  const carpeta  = `Asistencia ${mes} ${d.fecha.split("-")[0]}`;
+
+  setDriveMsg("Subiendo a Google Drive...", "info");
+
+  try {
+    // Buscar o crear carpeta
+    const folderId = await obtenerOCrearCarpeta(carpeta);
+
+    // Buscar si ya existe el archivo para actualizarlo
+    const existente = await buscarArchivo(nombre, folderId);
+
+    if (existente) {
+      await actualizarArchivo(existente, csv);
+    } else {
+      await crearArchivo(nombre, csv, folderId);
+    }
+
+    setDriveMsg(`✓ Subido a Drive · carpeta "${carpeta}"`, "success");
+  } catch (e) {
+    setDriveMsg("Error al subir. Intentá de nuevo.", "error");
+    console.error(e);
+  }
+}
+
+async function obtenerOCrearCarpeta(nombre) {
+  const busq = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name='${nombre}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`,
+    { headers: { Authorization: "Bearer " + gdriveToken } }
+  );
+  const data = await busq.json();
+  if (data.files && data.files.length > 0) return data.files[0].id;
+
+  const crear = await fetch("https://www.googleapis.com/drive/v3/files", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + gdriveToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: nombre, mimeType: "application/vnd.google-apps.folder" })
+  });
+  const carpeta = await crear.json();
+  return carpeta.id;
+}
+
+async function buscarArchivo(nombre, folderId) {
+  const busq = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name='${nombre}' and '${folderId}' in parents and trashed=false&fields=files(id)`,
+    { headers: { Authorization: "Bearer " + gdriveToken } }
+  );
+  const data = await busq.json();
+  return data.files && data.files.length > 0 ? data.files[0].id : null;
+}
+
+async function crearArchivo(nombre, contenido, folderId) {
+  const meta = JSON.stringify({ name: nombre, parents: [folderId] });
+  const body = new FormData();
+  body.append("metadata", new Blob([meta], { type: "application/json" }));
+  body.append("file",     new Blob([contenido], { type: "text/csv" }));
+
+  await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + gdriveToken },
+    body
+  });
+}
+
+async function actualizarArchivo(fileId, contenido) {
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: "PATCH",
+    headers: { Authorization: "Bearer " + gdriveToken, "Content-Type": "text/csv" },
+    body: contenido
+  });
+}
+
+function setDriveMsg(msg, tipo) {
+  const el = document.getElementById("drive-msg");
+  if (!el) return;
+  const color = tipo === "success" ? "#15803d" : tipo === "error" ? "#dc2626" : "#2563eb";
+  el.innerHTML = `<span style="font-size:13px;color:${color};">${msg}</span>`;
 }
