@@ -242,6 +242,7 @@ function renderPanel() {
               <h2 class="card-title" style="margin:0">Presentes</h2>
               <div class="row-gap" style="margin:0">
                 <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
+                <button class="btn-outline sm" id="btn-planilla" onclick="exportarPlanillaCompleta()">Planilla Excel</button>
                 <button class="btn-drive sm" id="btn-drive" onclick="exportarADrive()">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:5px;vertical-align:middle"><path d="M4.5 20.5L9 12.5L2 8L4.5 20.5Z" fill="#4285F4"/><path d="M19.5 20.5L15 12.5L22 8L19.5 20.5Z" fill="#FBBC05"/><path d="M12 3L9 12.5H15L12 3Z" fill="#34A853"/><path d="M4.5 20.5H19.5L15 12.5H9L4.5 20.5Z" fill="#EA4335"/></svg>
                   Subir a Drive
@@ -531,4 +532,102 @@ function setDriveMsg(msg, tipo) {
   if (!el) return;
   const color = tipo === "success" ? "#15803d" : tipo === "error" ? "#dc2626" : "#2563eb";
   el.innerHTML = `<span style="font-size:13px;color:${color};">${msg}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXPORTAR PLANILLA EXCEL COMPLETA (SheetJS)
+// ══════════════════════════════════════════════════════════
+async function exportarPlanillaCompleta() {
+  const btn = document.getElementById("btn-planilla");
+  if (btn) { btn.disabled = true; btn.textContent = "Generando..."; }
+
+  try {
+    // Cargar todos los datos de Firebase
+    const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
+      db.ref("fechas").once("value"),
+      db.ref("presentes").once("value"),
+      db.ref("alumnos").once("value")
+    ]);
+
+    const fechas    = fechasSnap.val()    || {};
+    const presentes = presentesSnap.val() || {};
+    const alumnosObj= alumnosSnap.val()   || {};
+    const alumnos   = Object.values(alumnosObj);
+
+    const XLSX = window.XLSX;
+    const wb   = XLSX.utils.book_new();
+
+    const meses = [
+      [1,"Enero"],[2,"Febrero"],[3,"Marzo"],[4,"Abril"],
+      [5,"Mayo"],[6,"Junio"],[7,"Julio"],[8,"Agosto"],
+      [9,"Septiembre"],[10,"Octubre"],[11,"Noviembre"],[12,"Diciembre"]
+    ];
+
+    for (const [mNum, mNombre] of meses) {
+      const diasEnMes = new Date(2026, mNum, 0).getDate();
+      
+      // Headers
+      const header1 = [`IFD N° 12 - MEDIA  |  REGISTRO DE ASISTENCIA 2026  |  ${mNombre.toUpperCase()}`];
+      const header2 = ["CURSO:", "", "3° 6°", "", "TURNO:", "", "TARDE", "", "PRECEPTOR:", "", "cristina"];
+      const header3 = ["N°", "APELLIDO Y NOMBRE"];
+      const header4 = ["", ""];
+      for (let d = 1; d <= diasEnMes; d++) {
+        const wd = new Date(2026, mNum-1, d).getDay();
+        header3.push(d);
+        header4.push(["Do","Lu","Ma","Mi","Ju","Vi","Sa"][wd]);
+      }
+      header3.push("P","A","T");
+      header4.push("","","");
+
+      const rows = [header1, header2, header3, header4];
+
+      // Filas de alumnos
+      for (let i = 0; i < alumnos.length; i++) {
+        const nombre = alumnos[i];
+        const row    = [i+1, nombre];
+        let totalP   = 0, totalA = 0;
+
+        for (let d = 1; d <= diasEnMes; d++) {
+          const wd      = new Date(2026, mNum-1, d).getDay();
+          if (wd === 0 || wd === 6) { row.push("-"); continue; }
+
+          const fechaId = `2026-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+          const presDay = presentes[fechaId] ? Object.values(presentes[fechaId]) : [];
+          const nombresP= presDay.map(p => p.nombre.trim().toLowerCase());
+          const normNombre = nombre.trim().toLowerCase();
+          const estaPresente = nombresP.some(p =>
+            p === normNombre || p.includes(normNombre.split(" ")[0]) || normNombre.includes(p.split(" ")[0])
+          );
+
+          // Solo marcar si hay datos de ese día en Firebase
+          if (fechas[fechaId]) {
+            row.push(estaPresente ? "P" : "A");
+            if (estaPresente) totalP++; else totalA++;
+          } else {
+            row.push("");
+          }
+        }
+        row.push(totalP, totalA, totalP + totalA);
+        rows.push(row);
+      }
+
+      // Filas vacías extra
+      for (let i = alumnos.length; i < 24; i++) {
+        const row = [i+1, ""];
+        for (let d = 0; d < diasEnMes + 3; d++) row.push("");
+        rows.push(row);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 5 }, { wch: 30 }, ...Array(diasEnMes).fill({ wch: 4 }), { wch: 5 }, { wch: 5 }, { wch: 5 }];
+      XLSX.utils.book_append_sheet(wb, ws, mNombre);
+    }
+
+    XLSX.writeFile(wb, `Asistencia_IFD12_3ro6ta_2026.xlsx`);
+  } catch(e) {
+    console.error(e);
+    alert("Error al generar la planilla: " + e.message);
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = "Descargar planilla Excel"; }
 }
