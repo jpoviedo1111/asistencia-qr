@@ -242,6 +242,7 @@ function renderPanel() {
               <h2 class="card-title" style="margin:0">Presentes</h2>
               <div class="row-gap" style="margin:0">
                 <button class="btn-outline sm" onclick="exportCSV()">Exportar CSV</button>
+                <button class="btn-outline sm" id="btn-planilla" onclick="exportarPlanillaCompleta()">Planilla Excel</button>
                 <button class="btn-drive sm" id="btn-drive" onclick="exportarADrive()">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:5px;vertical-align:middle"><path d="M4.5 20.5L9 12.5L2 8L4.5 20.5Z" fill="#4285F4"/><path d="M19.5 20.5L15 12.5L22 8L19.5 20.5Z" fill="#FBBC05"/><path d="M12 3L9 12.5H15L12 3Z" fill="#34A853"/><path d="M4.5 20.5H19.5L15 12.5H9L4.5 20.5Z" fill="#EA4335"/></svg>
                   Subir a Drive
