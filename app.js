@@ -553,7 +553,7 @@ async function exportarPlanillaCompleta() {
     const presentes  = presentesSnap.val() || {};
     const alumnosObj = alumnosSnap.val()   || {};
     const alumnos    = Object.values(alumnosObj);
-    const XLSX       = window.XLSX;
+    const XLSX       = window.XLSXStyle || window.XLSX;
     const wb         = XLSX.utils.book_new();
 
     const meses = [
