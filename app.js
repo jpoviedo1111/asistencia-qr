@@ -634,7 +634,7 @@ async function exportarPlanillaCompleta() {
       merges.push({s:{r:0,c:0}, e:{r:0,c:totalCols-1}});
 
       // Row 1: subtitle
-      setCell(1, 0, `${monthName.toUpperCase()}  ·  CURSO: 3° 6°  ·  TURNO: TARDE  ·  PRECEPTOR/A: Cristina`, S.sub);
+      setCell(1, 0, `${monthName.toUpperCase()}  ·  CURSO: ${CURSO}  ·  TURNO: ${TURNO}  ·  PRECEPTOR/A: Cristina`, S.sub);
       merges.push({s:{r:1,c:0}, e:{r:1,c:totalCols-1}});
 
       // Row 2: day numbers header
@@ -738,7 +738,7 @@ async function exportarPlanillaCompleta() {
     function setR(r,c,v,s){ const a=XLSX.utils.encode_cell({r,c}); wsRes[a]={v,s}; }
 
     const totalResCol = 2 + meses.length*2;
-    setR(0,0,`IFD N°12  ·  RESUMEN ANUAL ${YEAR}  ·  CURSO 3° 6°  ·  TURNO TARDE`, S.hdr);
+    setR(0,0,`IFD N°12  ·  RESUMEN ANUAL ${YEAR}  ·  CURSO ${CURSO}  ·  TURNO ${TURNO}`, S.hdr);
     resMerges.push({s:{r:0,c:0},e:{r:0,c:totalResCol+1}});
     setR(1,0,"N°",S.sub); setR(1,1,"APELLIDO Y NOMBRE",S.sub);
 
@@ -790,7 +790,7 @@ async function exportarPlanillaCompleta() {
     // Reordenar — resumen al principio
     wb.SheetNames = ["RESUMEN ANUAL", ...meses.map(([,n])=>n)];
 
-    XLSX.writeFile(wb, `Asistencia_IFD12_3ro6ta_${YEAR}.xlsx`);
+    XLSX.writeFile(wb, `Asistencia_IFD12_${CURSO_ACTUAL}_${YEAR}.xlsx`);
 
   } catch(e) {
     console.error(e);
