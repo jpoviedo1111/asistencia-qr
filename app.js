@@ -561,6 +561,10 @@ function setDriveMsg(msg, tipo) {
 //  EXPORTAR PLANILLA EXCEL PROFESIONAL (SheetJS)
 // ══════════════════════════════════════════════════════════
 async function exportarPlanillaCompleta() {
+  // Re-read course from localStorage to ensure we have the current one
+  CURSO_ACTUAL = localStorage.getItem("curso_activo") || "3ro6ta";
+  CURSO = CURSOS.find(c => c.id === CURSO_ACTUAL)?.nombre || CURSO_ACTUAL;
+
   const btn = document.getElementById("btn-planilla");
   if (btn) { btn.disabled = true; btn.textContent = "Generando..."; }
 
