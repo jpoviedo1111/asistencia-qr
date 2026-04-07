@@ -85,6 +85,34 @@ function renderVistaAlumno(fechaId) {
     </div>
   `;
 
+  // ── Verificar franja horaria (Argentina UTC-3) ──────────
+  const ahora      = new Date();
+  const horaAR     = new Date(ahora.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+  const horaActual = horaAR.getHours() * 60 + horaAR.getMinutes();
+  const horaInicio = 13 * 60 + 30;  // 13:30
+  const horaFin    = 16 * 60 + 0;   // 16:00
+
+  if (horaActual < horaInicio || horaActual > horaFin) {
+    const horaStr = horaAR.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    document.getElementById("scan-body").innerHTML = `
+      <div class="alert-error" style="text-align:center;padding:1.5rem;">
+        <div style="font-size:32px;margin-bottom:12px;">🕐</div>
+        <div style="font-size:16px;font-weight:600;">Fuera del horario</div>
+        <div style="margin-top:10px;font-size:14px;">
+          El registro de asistencia está disponible<br>
+          <strong>de 13:30 a 16:00 hs</strong>
+        </div>
+        <div style="margin-top:12px;font-size:13px;opacity:0.8;">
+          Hora actual: ${horaStr} hs
+        </div>
+      </div>
+      <p style="text-align:center;font-size:13px;color:#9ca3af;margin-top:1rem;">
+        ${IFD} · ${CURSO} · Turno ${TURNO}
+      </p>
+    `;
+    return;
+  }
+
   if (yaMarcoHoy(fechaId)) {
     const nombre = getNombreGuardado(fechaId);
     document.getElementById("scan-body").innerHTML = `
