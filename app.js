@@ -277,6 +277,17 @@ function renderPanel() {
           <div class="card">
             <h2 class="card-title">Ausentes</h2>
             <ul id="lista-ausentes" class="present-list red-list"></ul>
+            <div id="marcar-manual-box" style="margin-top:1rem;display:none;">
+              <div class="row-gap" style="margin:0;">
+                <select id="sel-manual" class="form-select" style="flex:1;">
+                  <option value="">— Elegí un alumno —</option>
+                </select>
+                <button class="btn-primary" onclick="marcarManual()">Marcar presente</button>
+                <button class="btn-outline" onclick="toggleManual(false)">Cancelar</button>
+              </div>
+              <div id="manual-msg" style="margin-top:8px;font-size:13px;"></div>
+            </div>
+            <button class="btn-outline" id="btn-manual" style="margin-top:1rem;width:100%;" onclick="toggleManual(true)">+ Marcar presente manualmente</button>
           </div>
         </div>
       </div>
