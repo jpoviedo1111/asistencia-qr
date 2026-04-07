@@ -413,6 +413,57 @@ function cargarRegistro(fechaId) {
 }
 
 // ── Exportar CSV ──────────────────────────────────────────
+function toggleManual(show) {
+  const box = document.getElementById("marcar-manual-box");
+  const btn = document.getElementById("btn-manual");
+  if (!box || !btn) return;
+  box.style.display = show ? "block" : "none";
+  btn.style.display  = show ? "none"  : "block";
+
+  if (show) {
+    // Populate select with ausentes only
+    const ausentes = Array.from(
+      document.querySelectorAll("#lista-ausentes li span:first-child")
+    ).map(el => el.textContent.trim()).filter(Boolean);
+
+    const sel = document.getElementById("sel-manual");
+    sel.innerHTML = '<option value="">— Elegí un alumno —</option>' +
+      ausentes.map(a => `<option value="${a}">${a}</option>`).join("");
+    document.getElementById("manual-msg").innerHTML = "";
+  }
+}
+
+function marcarManual() {
+  const sel     = document.getElementById("sel-manual");
+  const nombre  = sel.value;
+  if (!nombre || !fechaActual) return;
+
+  const btn = document.querySelector("#marcar-manual-box .btn-primary");
+  btn.disabled    = true;
+  btn.textContent = "Registrando...";
+
+  const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  const key  = nombre.replace(/\s+/g, "_").toLowerCase();
+
+  db.ref(`cursos/${CURSO_ACTUAL}/presentes/${fechaActual}/${key}`)
+    .set({ nombre, hora, timestamp: Date.now(), manual: true })
+    .then(() => {
+      document.getElementById("manual-msg").innerHTML =
+        `<span style="font-size:13px;color:#15803d;">✓ ${nombre} marcado presente · ${hora}</span>`;
+      btn.disabled    = false;
+      btn.textContent = "Marcar presente";
+      sel.value = "";
+      // Refresh ausentes list after a moment
+      setTimeout(() => toggleManual(false), 1500);
+    })
+    .catch(() => {
+      document.getElementById("manual-msg").innerHTML =
+        `<span style="font-size:13px;color:#dc2626;">Error al registrar. Intentá de nuevo.</span>`;
+      btn.disabled    = false;
+      btn.textContent = "Marcar presente";
+    });
+}
+
 function exportCSV() {
   const d = window._exportData;
   if (!d) return;
