@@ -1,0 +1,56 @@
+{
+  "jpoviedo1_gmail_com": {
+    "nombre": "Cristina",
+    "email": "jpoviedo1@gmail.com",
+    "cursos": ["3° 6°", "1° 6°"],
+    "creadoEn": 1774644000000,
+    "datos": {
+      "cursos": {
+        "3__6_": {
+          "alumnos": [
+            "Godoy Tobias",
+            "Gomez Figueroa Dario",
+            "Jara Lautaro",
+            "Jerez Priscila Lujan",
+            "Suruguay Lucia",
+            "Torres Pailaleo Siriana",
+            "Soto Sucre Emanuel",
+            "Rodriguez Alejandro",
+            "Almaraz Morena Valentina",
+            "Marin Jazmin",
+            "Subelza Thiago Martin",
+            "Monsalves Arriagada Zoe Abril",
+            "Quilapan Sol",
+            "Pedro L",
+            "Medina Thiago",
+            "Huincaleo Suñilda",
+            "Vargas Alexander",
+            "Samudio Magali",
+            "Navia Lucia"
+          ]
+        },
+        "1__6_": {
+          "alumnos": [
+            "Alvarado Hugo Nahuel",
+            "Azua Nicole",
+            "Benegas Benjamin",
+            "Bravo Emanuel",
+            "Caceres Damian",
+            "Carrillo Beltran Delia",
+            "Lopez Benjamin",
+            "Melo Antonella",
+            "Morales Angel",
+            "Montoya Nayeli",
+            "Paredes Cayuman Joel",
+            "Quilapi Javier",
+            "Quintoman Alan Santino",
+            "Rivas Antineo Milagros",
+            "Sepulveda Thiago",
+            "Soto Mateo Agustin",
+            "Valdebenito Tomas"
+          ]
+        }
+      }
+    }
+  }
+}

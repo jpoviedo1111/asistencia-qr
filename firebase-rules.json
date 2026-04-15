@@ -1,11 +1,12 @@
 {
   "rules": {
-    "cursos": {
-      "$curso": {
-        "alumnos":  { ".read": true, ".write": true },
-        "fechas":   { ".read": true, ".write": true },
-        "presentes":{ ".read": true, ".write": true }
-      }
+    "config": {
+      ".read": true,
+      ".write": true
+    },
+    "preceptores": {
+      ".read": true,
+      ".write": true
     }
   }
 }
