@@ -167,7 +167,7 @@ function renderPreceptorPanel(fromAdmin = false) {
   const cursos = p.cursos || [];
   if (!cursoActivo || !cursos.includes(cursoActivo)) cursoActivo = cursos[0] || null;
 
-  const cursoId = cursoActivo ? cursoActivo.replace(/[°\s]/g, "_").replace(/__/g,"_") : "";
+  const cursoId = cursoActivo ? cursoActivo.replace(/[°\s]/g, "_") : "";
 
   document.getElementById("app").innerHTML = `
     <div class="panel-wrap">
@@ -306,7 +306,7 @@ function showTab(id, btn) {
 let alumnosLista = [];
 
 function getCursoPath(...parts) {
-  const cid = cursoActivo.replace(/[°\s]/g,"_").replace(/__/g,"_");
+  const cid = cursoActivo.replace(/[°\s]/g,"_");
   return [dbPath(currentData.id, "cursos", cid), ...parts].join("/");
 }
 
@@ -361,7 +361,7 @@ function generarQR() {
   const box = document.getElementById("qr-box");
   if (!box) return;
   box.innerHTML = "";
-  const cid = cursoActivo.replace(/[°\s]/g,"_").replace(/__/g,"_");
+  const cid = cursoActivo.replace(/[°\s]/g,"_");
   const url = `${location.origin}${location.pathname}?scan=1&prec=${currentData.id}&curso=${cid}`;
   new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 }
@@ -543,7 +543,7 @@ function renderVistaAlumno(cursoId, precId) {
       const pd     = ps.val();
       const cursos = pd?.cursos || [];
       // Reconstruir nombre del curso desde el id
-      const cursoNombre = cursos.find(c => c.replace(/[°\s]/g,"_").replace(/__/g,"_") === cursoId) || cursoId;
+      const cursoNombre = cursos.find(c => c.replace(/[°\s]/g,"_") === cursoId) || cursoId;
       document.getElementById("scan-sub").textContent = `${cursoNombre} · Turno ${TURNO} · ${formatearFecha(fechaId)}`;
     });
 
@@ -690,7 +690,7 @@ function buildCSV(d) {
 // ══════════════════════════════════════════════════════════
 async function exportarPlanillaCompleta() {
   CURSO_ACTUAL_EXPORT = cursoActivo;
-  const cid = cursoActivo.replace(/[°\s]/g,"_").replace(/__/g,"_");
+  const cid = cursoActivo.replace(/[°\s]/g,"_");
   const btn = document.getElementById("btn-planilla");
   if (btn) { btn.disabled=true; btn.textContent="Generando..."; }
 
@@ -778,7 +778,7 @@ async function exportarPlanillaCompleta() {
       XLSX.utils.book_append_sheet(wb, ws, mName);
     }
 
-    const cursoFile = cursoActivo.replace(/[°\s]/g,"_").replace(/__/g,"_");
+    const cursoFile = cursoActivo.replace(/[°\s]/g,"_");
     XLSX.writeFile(wb, `Asistencia_IFD12_${cursoFile}_${YEAR}.xlsx`);
   } catch(e) { console.error(e); alert("Error: "+e.message); }
 
