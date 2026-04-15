@@ -1,10 +1,10 @@
 // ══════════════════════════════════════════════════════════
-//  AUTH — Login con Google + routing por rol
+//  AUTH — Login con Google
 // ══════════════════════════════════════════════════════════
 
-let currentUser  = null;
-let currentRole  = null;
-let currentData  = null;
+let currentUser = null;
+let currentRole = null;
+let currentData = null;
 
 const params  = new URLSearchParams(location.search);
 const isScan  = params.get("scan") === "1";
@@ -16,18 +16,7 @@ window.addEventListener("DOMContentLoaded", () => {
     renderVistaAlumno(cursoQR, precQR);
     return;
   }
-
-  auth.getRedirectResult().then(result => {
-    if (result && result.user) {
-      console.log("Login por redirect OK:", result.user.email);
-    }
-  }).catch(err => {
-    console.error("Redirect error:", err);
-    if (err.code !== "auth/no-current-user") {
-      alert("Error al iniciar sesión: " + err.message);
-    }
-  });
-
+  renderLogin();
   auth.onAuthStateChanged(async user => {
     if (!user) { renderLogin(); return; }
     currentUser = user;
@@ -52,8 +41,8 @@ async function resolveRole(user) {
 
   if (data) {
     const precId = Object.keys(data)[0];
-    currentRole = "preceptor";
-    currentData = { id: precId, ...data[precId] };
+    currentRole  = "preceptor";
+    currentData  = { id: precId, ...data[precId] };
     renderPreceptorPanel();
   } else {
     renderNoAutorizado(user);
@@ -76,20 +65,37 @@ function renderLogin() {
           </svg>
           Ingresar con Google
         </button>
+        <div id="login-msg" style="margin-top:12px;font-size:13px;color:#dc2626;min-height:20px;"></div>
         <p class="login-hint">Solo usuarios autorizados por la institución</p>
       </div>
     </div>
   `;
 }
 
-function loginGoogle() {
+async function loginGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: "select_account" });
-  auth.signInWithRedirect(provider);
+  
+  try {
+    // Intentar popup primero
+    await auth.signInWithPopup(provider);
+  } catch(err) {
+    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
+      // Si popup falla, usar redirect
+      auth.signInWithRedirect(provider);
+    } else {
+      const msg = document.getElementById("login-msg");
+      if (msg) msg.textContent = "Error: " + err.message;
+      console.error(err);
+    }
+  }
 }
 
 function logout() {
-  auth.signOut().then(() => { currentUser=null; currentRole=null; currentData=null; location.reload(); });
+  auth.signOut().then(() => {
+    currentUser = null; currentRole = null; currentData = null;
+    renderLogin();
+  });
 }
 
 function renderNoAutorizado(user) {
