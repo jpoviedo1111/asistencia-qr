@@ -474,7 +474,7 @@ function renderVistaAlumno(cursoId, precId) {
   const ahora  = new Date();
   const horaAR = new Date(ahora.toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
   const min    = horaAR.getHours()*60 + horaAR.getMinutes();
-  if (min < 13*60+30 || min > 16*60) {
+  if (min < 13*60+30 || min > 18*60) {
     const horaStr = horaAR.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
     app.innerHTML = `
       <div class="phone-wrap">
@@ -485,7 +485,7 @@ function renderVistaAlumno(cursoId, precId) {
         <div class="phone-body">
           <div class="alert-error" style="text-align:center;padding:1.5rem;">
             <div style="font-size:32px;margin-bottom:12px;">🕐</div>
-            <div style="font-weight:600;">El registro está disponible de 13:30 a 16:00 hs</div>
+            <div style="font-weight:600;">El registro está disponible de 13:30 a 18:00 hs</div>
             <div style="margin-top:10px;font-size:13px;">Hora actual: ${horaStr} hs</div>
           </div>
         </div>
