@@ -3,40 +3,43 @@
 // ══════════════════════════════════════════════════════════
 
 let currentUser  = null;
-let currentRole  = null; // "admin" | "preceptor"
-let currentData  = null; // datos del preceptor desde Firebase
+let currentRole  = null;
+let currentData  = null;
 
 const params  = new URLSearchParams(location.search);
 const isScan  = params.get("scan") === "1";
 const cursoQR = params.get("curso");
 const precQR  = params.get("prec");
 
-// ── Arranque ──────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
   if (isScan && cursoQR && precQR) {
     renderVistaAlumno(cursoQR, precQR);
     return;
   }
 
-  auth.onAuthStateChanged(async user => {
-    if (!user) {
-      renderLogin();
-      return;
+  auth.getRedirectResult().then(result => {
+    if (result && result.user) {
+      console.log("Login por redirect OK:", result.user.email);
     }
+  }).catch(err => {
+    console.error("Redirect error:", err);
+    if (err.code !== "auth/no-current-user") {
+      alert("Error al iniciar sesión: " + err.message);
+    }
+  });
+
+  auth.onAuthStateChanged(async user => {
+    if (!user) { renderLogin(); return; }
     currentUser = user;
     await resolveRole(user);
   });
 });
 
-// ── Resolver rol del usuario ──────────────────────────────
 async function resolveRole(user) {
-  const app = document.getElementById("app");
-  app.innerHTML = `<div class="loading">Cargando...</div>`;
+  document.getElementById("app").innerHTML = `<div class="loading">Cargando...</div>`;
 
-  // ¿Es admin?
   if (user.email === ADMIN_MAIL) {
     currentRole = "admin";
-    // Guardar UID del admin si no está
     db.ref("config/adminUid").once("value", snap => {
       if (!snap.val()) db.ref("config/adminUid").set(user.uid);
     });
@@ -44,7 +47,6 @@ async function resolveRole(user) {
     return;
   }
 
-  // ¿Es preceptor registrado?
   const snap = await db.ref("preceptores").orderByChild("email").equalTo(user.email).once("value");
   const data = snap.val();
 
@@ -54,12 +56,10 @@ async function resolveRole(user) {
     currentData = { id: precId, ...data[precId] };
     renderPreceptorPanel();
   } else {
-    // No registrado
     renderNoAutorizado(user);
   }
 }
 
-// ── Login ─────────────────────────────────────────────────
 function renderLogin() {
   document.getElementById("app").innerHTML = `
     <div class="login-wrap">
@@ -84,24 +84,21 @@ function renderLogin() {
 
 function loginGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(err => {
-    console.error(err);
-    alert("Error al iniciar sesión. Intentá de nuevo.");
-  });
+  provider.setCustomParameters({ prompt: "select_account" });
+  auth.signInWithRedirect(provider);
 }
 
 function logout() {
-  auth.signOut().then(() => { currentUser = null; currentRole = null; currentData = null; });
+  auth.signOut().then(() => { currentUser=null; currentRole=null; currentData=null; location.reload(); });
 }
 
-// ── No autorizado ─────────────────────────────────────────
 function renderNoAutorizado(user) {
   document.getElementById("app").innerHTML = `
     <div class="login-wrap">
       <div class="login-card">
         <div class="login-logo">${IFD}</div>
         <h1 class="login-title" style="font-size:18px;">Acceso no autorizado</h1>
-        <p class="login-sub">Tu cuenta <strong>${user.email}</strong> no está registrada en el sistema.</p>
+        <p class="login-sub">Tu cuenta <strong>${user.email}</strong> no está registrada.</p>
         <p class="login-sub" style="margin-top:8px;">Contactá al administrador para solicitar acceso.</p>
         <button class="btn-outline" style="margin-top:1.5rem;width:100%;" onclick="logout()">Cerrar sesión</button>
       </div>
