@@ -58,8 +58,13 @@ function renderAdminPanel() {
             <input id="add-nombre" type="text" class="inp" placeholder="Ej: María González"/>
           </div>
           <div class="form-group">
-            <label class="form-label">Gmail</label>
-            <input id="add-email" type="email" class="inp" placeholder="preceptor@gmail.com"/>
+            <label class="form-label">Email (cualquier mail)</label>
+            <input id="add-email" type="email" class="inp" placeholder="preceptor@hotmail.com"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Contraseña temporal</label>
+            <input id="add-pass" type="text" class="inp" placeholder="Mínimo 6 caracteres"/>
+            <p style="font-size:12px;color:#6b7280;margin-top:4px;">El preceptor usará esta contraseña para ingresar.</p>
           </div>
           <div class="form-group">
             <label class="form-label">Cursos (uno por línea, ej: 3° 6°)</label>
@@ -101,23 +106,40 @@ function cargarListaPreceptores() {
 function agregarPreceptor() {
   const nombre = document.getElementById("add-nombre").value.trim();
   const email  = document.getElementById("add-email").value.trim().toLowerCase();
+  const pass   = document.getElementById("add-pass").value.trim();
   const cursos = document.getElementById("add-cursos").value
     .split("\n").map(s => s.trim()).filter(Boolean);
   const msg    = document.getElementById("add-msg");
 
-  if (!nombre || !email || cursos.length === 0) {
+  if (!nombre || !email || !pass || cursos.length === 0) {
     msg.innerHTML = `<span style="color:#dc2626;">Completá todos los campos.</span>`; return;
+  }
+  if (pass.length < 6) {
+    msg.innerHTML = `<span style="color:#dc2626;">La contraseña debe tener al menos 6 caracteres.</span>`; return;
   }
 
   const id = email.replace(/[@.]/g, "_");
-  db.ref(`preceptores/${id}`).set({ nombre, email, cursos, creadoEn: Date.now() })
-    .then(() => {
-      msg.innerHTML = `<span style="color:#15803d;">✓ Preceptor agregado correctamente.</span>`;
-      document.getElementById("add-nombre").value = "";
-      document.getElementById("add-email").value  = "";
-      document.getElementById("add-cursos").value = "";
-      cargarListaPreceptores();
-    });
+  // Guardar en DB con contraseña hasheada simple (el preceptor la usa para login)
+  db.ref(`preceptores/${id}`).set({
+    nombre, email, cursos,
+    passTemp: pass,
+    creadoEn: Date.now()
+  }).then(() => {
+    msg.innerHTML = `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-top:8px;">
+        <div style="font-weight:600;color:#15803d;margin-bottom:6px;">✓ Preceptor agregado</div>
+        <div style="font-size:13px;color:#374151;">
+          <b>Email:</b> ${email}<br>
+          <b>Contraseña temporal:</b> ${pass}<br>
+          <span style="color:#6b7280;">Compartí estos datos con el preceptor para que pueda ingresar.</span>
+        </div>
+      </div>`;
+    document.getElementById("add-nombre").value = "";
+    document.getElementById("add-email").value  = "";
+    document.getElementById("add-pass").value   = "";
+    document.getElementById("add-cursos").value = "";
+    cargarListaPreceptores();
+  });
 }
 
 function eliminarPreceptor(id, nombre) {
