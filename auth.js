@@ -214,4 +214,5 @@ auth.signOut().then(() => renderLogin()).catch(() => renderLogin());
 
 function renderNoAutorizado(user) {
 document.getElementById(“app”).innerHTML = `<div class="login-wrap"> <div class="login-card"> <div class="login-logo">${IFD}</div> <h1 class="login-title" style="font-size:18px;">Acceso no autorizado</h1> <p class="login-sub">Tu cuenta <strong>${user.email}</strong> no está registrada.</p> <p class="login-sub" style="margin-top:8px;">Contactá al administrador para solicitar acceso.</p> <button class="btn-outline" style="margin-top:1.5rem;width:100%;" onclick="logout()">Cerrar sesión</button> </div> </div>`;
+}div>`;
 }
