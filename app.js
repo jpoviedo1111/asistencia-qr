@@ -765,7 +765,24 @@ async function exportarPlanillaCompleta() {
           const ok=np.some(p=>p===nn||nn.split(" ").some(pt=>pt.length>2&&p.includes(pt)));
           if(ok){setCell(r,d+1,"P",S.pres);tP++;}else{setCell(r,d+1,"A",S.aus);tA++;}
         }
-        if(nombre){setCell(r,daysInMonth+2,tP,S.pres);setCell(r,daysInMonth+3,tA,S.aus);setCell(r,daysInMonth+4,tP+tA,S.tot);}
+        if(nombre){
+          // Use COUNTIF formulas so totals update when cells change
+          var dataStart = XLSX.utils.encode_cell({r:r, c:2});
+          var dataEnd   = XLSX.utils.encode_cell({r:r, c:daysInMonth+1});
+          var pColLetter = XLSX.utils.encode_col(daysInMonth+2);
+          var aColLetter = XLSX.utils.encode_col(daysInMonth+3);
+          var rowNum = r + 1;
+          var rangeRef = dataStart + ":" + dataEnd;
+          var pCell = ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+2})];
+          var aCell = ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+3})];
+          var tCell = ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+4})];
+          if(!pCell){ ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+2})] = {}; pCell = ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+2})]; }
+          if(!aCell){ ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+3})] = {}; aCell = ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+3})]; }
+          if(!tCell){ ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+4})] = {}; tCell = ws[XLSX.utils.encode_cell({r:r, c:daysInMonth+4})]; }
+          pCell.v = tP; pCell.f = 'COUNTIF(' + rangeRef + ',"P")'; pCell.t = 'n'; pCell.s = S.pres;
+          aCell.v = tA; aCell.f = 'COUNTIF(' + rangeRef + ',"A")'; aCell.t = 'n'; aCell.s = S.aus;
+          tCell.v = tP+tA; tCell.f = pColLetter + rowNum + '+' + aColLetter + rowNum; tCell.t = 'n'; tCell.s = S.tot;
+        }
         else for(let o=0;o<3;o++)setCell(r,daysInMonth+2+o,"",S.tot);
       }
 

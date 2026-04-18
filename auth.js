@@ -1,3 +1,4 @@
+
 var currentUser = null;
 var currentRole = null;
 var currentData = null;
