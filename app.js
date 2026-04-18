@@ -245,7 +245,6 @@ function renderPreceptorPanel(fromAdmin = false) {
             <div class="card-title-row">
               <h2 class="card-title" style="margin:0;">Presentes</h2>
               <div class="row-gap" style="margin:0;">
-                <button class="btn-outline sm" onclick="exportCSV()">CSV</button>
                 <button class="btn-outline sm" id="btn-planilla" onclick="exportarPlanillaCompleta()">Planilla Excel</button>
                 <button class="btn-drive sm" id="btn-drive" onclick="exportarADrive()">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="margin-right:5px;vertical-align:middle">
@@ -653,6 +652,110 @@ async function buscarArchivo(nombre, folderId) {
     {headers:{Authorization:"Bearer "+gdriveToken}});
   const d = await r.json();
   return d.files?.length ? d.files[0].id : null;
+}
+
+async function crearArchivoBlob(nombre, blob, folderId) {
+  const meta = JSON.stringify({name:nombre, parents:[folderId]});
+  const body = new FormData();
+  body.append("metadata", new Blob([meta],{type:"application/json"}));
+  body.append("file", blob);
+  await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+    {method:"POST",headers:{Authorization:"Bearer "+gdriveToken},body});
+}
+
+async function actualizarArchivoBlob(fileId, blob) {
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+    {method:"PATCH",headers:{Authorization:"Bearer "+gdriveToken,"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},body:blob});
+}
+
+async function generarExcelBlob() {
+  const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
+    db.ref(getCursoPath("fechas")).once("value"),
+    db.ref(getCursoPath("presentes")).once("value"),
+    db.ref(getCursoPath("alumnos")).once("value")
+  ]);
+  const fechas     = fechasSnap.val()    || {};
+  const presentes  = presentesSnap.val() || {};
+  const alumnosObj = alumnosSnap.val()   || {};
+  const alumnos    = Object.values(alumnosObj);
+  const XLSX       = window.XLSXStyle || window.XLSX;
+  const wb         = XLSX.utils.book_new();
+  const meses = [[1,"Enero"],[2,"Febrero"],[3,"Marzo"],[4,"Abril"],[5,"Mayo"],[6,"Junio"],
+                 [7,"Julio"],[8,"Agosto"],[9,"Septiembre"],[10,"Octubre"],[11,"Noviembre"],[12,"Diciembre"]];
+  function thinBorder(){ const s={style:"thin",color:{rgb:"B0BEC5"}}; return {top:s,bottom:s,left:s,right:s}; }
+  function outerBorder(){ const s={style:"medium",color:{rgb:"1A3A5C"}}; return {top:s,bottom:s,left:s,right:s}; }
+  const S = {
+    hdr:   {font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:11},fill:{fgColor:{rgb:"1A3A5C"}},alignment:{horizontal:"center",vertical:"center"},border:outerBorder()},
+    sub:   {font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:9}, fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    meta:  {font:{name:"Calibri",bold:true,color:{rgb:"1A3A5C"},sz:8}, fill:{fgColor:{rgb:"D6E4F0"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    body:  {font:{name:"Calibri",sz:8,color:{rgb:"1A1A1A"}},fill:{fgColor:{rgb:"FFFFFF"}},alignment:{horizontal:"left",vertical:"center"},border:thinBorder()},
+    bodyAlt:{font:{name:"Calibri",sz:8,color:{rgb:"1A1A1A"}},fill:{fgColor:{rgb:"F2F7FB"}},alignment:{horizontal:"left",vertical:"center"},border:thinBorder()},
+    num:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"D6E4F0"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    wkd:   {font:{name:"Calibri",sz:8,color:{rgb:"999999"}},fill:{fgColor:{rgb:"ECECEC"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    pres:  {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"155724"}},fill:{fgColor:{rgb:"D4EDDA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    aus:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"721C24"}},fill:{fgColor:{rgb:"F8D7DA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    tot:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"EAF0FB"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    dayHdr:{font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:8},fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+  };
+  const dayNames = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
+  for (const [mNum, mName] of meses) {
+    const daysInMonth = new Date(YEAR,mNum,0).getDate();
+    const dayWd = {};
+    for (let d=1;d<=daysInMonth;d++) dayWd[d]=(new Date(YEAR,mNum-1,d).getDay()+6)%7;
+    const ws = {}; const merges = []; const colWidths = [];
+    function setCell(r,c,v,style){ const addr=XLSX.utils.encode_cell({r,c}); ws[addr]={v,s:style}; }
+    const totalCols = daysInMonth + 5;
+    setCell(0,0,`INSTITUCION DE FORMACION DOCENTE N 12  REGISTRO DE ASISTENCIA ${YEAR}`,S.hdr);
+    merges.push({s:{r:0,c:0},e:{r:0,c:totalCols-1}});
+    setCell(1,0,`${mName.toUpperCase()}  CURSO: ${cursoActivo}  TURNO: ${TURNO}  PRECEPTOR/A: ${currentData.nombre}`,S.sub);
+    merges.push({s:{r:1,c:0},e:{r:1,c:totalCols-1}});
+    setCell(2,0,"N",S.dayHdr); setCell(2,1,"APELLIDO Y NOMBRE",S.dayHdr);
+    for (let d=1;d<=daysInMonth;d++) setCell(2,d+1,d,dayWd[d]>=5?S.wkd:S.dayHdr);
+    setCell(2,daysInMonth+2,"P",{...S.dayHdr,fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(2,daysInMonth+3,"A",{...S.dayHdr,fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(2,daysInMonth+4,"T",{...S.dayHdr,fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(3,0,"",S.meta); setCell(3,1,"",S.meta);
+    for (let d=1;d<=daysInMonth;d++) setCell(3,d+1,dayNames[(new Date(YEAR,mNum-1,d).getDay()+6)%7],dayWd[d]>=5?S.wkd:S.meta);
+    for (let o=0;o<3;o++) setCell(3,daysInMonth+2+o,"",S.meta);
+    for (let i=0;i<Math.max(alumnos.length,24);i++) {
+      const r=i+4; const nombre=alumnos[i]||""; const base=i%2!==0?S.bodyAlt:S.body;
+      setCell(r,0,nombre?i+1:"",S.num); setCell(r,1,nombre,base);
+      let tP=0,tA=0;
+      for (let d=1;d<=daysInMonth;d++) {
+        const wd=dayWd[d];
+        const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+        if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
+        if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        const pd=presentes[fid]?Object.values(presentes[fid]):[];
+        const np=pd.map(p=>p.nombre.trim().toLowerCase());
+        const nn=nombre.trim().toLowerCase();
+        const ok=np.some(p=>p===nn||nn.split(" ").some(pt=>pt.length>2&&p.includes(pt)));
+        if(ok){setCell(r,d+1,"P",S.pres);tP++;}else{setCell(r,d+1,"A",S.aus);tA++;}
+      }
+      if(nombre){
+        const dataStart=XLSX.utils.encode_cell({r,c:2});
+        const dataEnd=XLSX.utils.encode_cell({r,c:daysInMonth+1});
+        const pColL=XLSX.utils.encode_col(daysInMonth+2);
+        const aColL=XLSX.utils.encode_col(daysInMonth+3);
+        const rowNum=r+1; const rangeRef=dataStart+":"+dataEnd;
+        const pAddr=XLSX.utils.encode_cell({r,c:daysInMonth+2});
+        const aAddr=XLSX.utils.encode_cell({r,c:daysInMonth+3});
+        const tAddr=XLSX.utils.encode_cell({r,c:daysInMonth+4});
+        ws[pAddr]={v:tP,f:'COUNTIF('+rangeRef+',"P")',t:'n',s:S.pres};
+        ws[aAddr]={v:tA,f:'COUNTIF('+rangeRef+',"A")',t:'n',s:S.aus};
+        ws[tAddr]={v:tP+tA,f:pColL+rowNum+'+'+aColL+rowNum,t:'n',s:S.tot};
+      } else { for(let o=0;o<3;o++) setCell(r,daysInMonth+2+o,"",S.tot); }
+    }
+    colWidths.push({wch:5},{wch:28});
+    for(let d=0;d<daysInMonth;d++) colWidths.push({wch:3.5});
+    colWidths.push({wch:5},{wch:5},{wch:5});
+    ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:29,c:totalCols-1}});
+    ws["!merges"]=merges; ws["!cols"]=colWidths;
+    ws["!rows"]=[{hpt:22},{hpt:16},{hpt:16},{hpt:13},...Array(26).fill({hpt:15})];
+    XLSX.utils.book_append_sheet(wb, ws, mName);
+  }
+  const wbOut = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+  return new Blob([wbOut], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
 
 async function crearArchivo(nombre, contenido, folderId) {
