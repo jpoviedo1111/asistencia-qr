@@ -16,7 +16,7 @@ const auth = firebase.auth();
 const IFD        = "IFD N° 12";
 const TURNO      = "Tarde";
 const ADMIN_UID  = ""; // Se completa automáticamente al primer login del admin
-const ADMIN_MAIL = "jpoviedo1@gmail.com";
+const ADMIN_MAIL = "adminsanma@gmail.com";
 
 // ── Google Drive ──────────────────────────────────────────
 window.GDRIVE_CLIENT_ID = "781408242345-r1eilre8tc2i94dv2ughj17jgcikcr35.apps.googleusercontent.com";
