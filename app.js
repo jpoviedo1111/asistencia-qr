@@ -264,11 +264,13 @@ function renderPreceptorPanel(fromAdmin = false) {
             <h2 class="card-title">Ausentes</h2>
             <ul id="lista-ausentes" class="present-list red-list"></ul>
             <div id="marcar-manual-box" style="margin-top:1rem;display:none;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:13px;font-weight:500;color:#374151;">Selecciona alumnos a marcar presente:</span>
+                <button id="btn-sel-todos" class="btn-outline sm" onclick="seleccionarTodos()">Seleccionar todos</button>
+              </div>
+              <div id="lista-manual-check" style="max-height:250px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:0 12px;margin-bottom:10px;"></div>
               <div class="row-gap" style="margin:0;">
-                <select id="sel-manual" class="form-select" style="flex:1;">
-                  <option value="">— Elegí un alumno —</option>
-                </select>
-                <button class="btn-primary" onclick="marcarManual()">Marcar presente</button>
+                <button class="btn-primary" style="flex:1;" onclick="marcarManual()">Marcar presentes</button>
                 <button class="btn-outline" onclick="toggleManual(false)">Cancelar</button>
               </div>
               <div id="manual-msg" style="margin-top:8px;font-size:13px;"></div>
