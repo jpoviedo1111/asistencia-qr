@@ -644,19 +644,21 @@ function exportarADrive() {
 }
 
 async function subirArchivoDrive(d) {
-  const csv      = buildCSV(d);
-  const nombre   = `Asistencia_${cursoActivo.replace(/[°\s]/g,"_")}_${d.fecha}.csv`;
-  const carpeta  = `Asistencia ${mesesNom[parseInt(d.fecha.split("-")[1])-1]} ${YEAR}`;
-  setDriveMsg("Subiendo a Google Drive...", "info");
+  setDriveMsg("Generando Excel...", "info");
   try {
+    const excelBlob = await generarExcelBlob();
+    if (!excelBlob) { setDriveMsg("Error al generar el Excel.", "error"); return; }
+    const cursoFile = cursoActivo.replace(/[°\s]/g,"_");
+    const nombre    = "Asistencia_IFD12_" + cursoFile + "_" + YEAR + ".xlsx";
+    const carpeta   = "Asistencia " + cursoActivo + " " + YEAR;
+    setDriveMsg("Subiendo a Google Drive...", "info");
     const folderId  = await obtenerOCrearCarpeta(carpeta);
     const existente = await buscarArchivo(nombre, folderId);
-    if (existente) await actualizarArchivo(existente, csv);
-    else await crearArchivo(nombre, csv, folderId);
-    setDriveMsg(`✓ Subido · carpeta "${carpeta}"`, "success");
-  } catch(e) { setDriveMsg("Error al subir. Intentá de nuevo.", "error"); }
+    if (existente) await actualizarArchivoBlob(existente, excelBlob);
+    else await crearArchivoBlob(nombre, excelBlob, folderId);
+    setDriveMsg("Subido correctamente · carpeta " + carpeta, "success");
+  } catch(e) { console.error(e); setDriveMsg("Error al subir. Intenta de nuevo.", "error"); }
 }
-
 async function obtenerOCrearCarpeta(nombre) {
   const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${nombre}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id)`,
     {headers:{Authorization:"Bearer "+gdriveToken}});
