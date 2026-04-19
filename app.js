@@ -417,39 +417,58 @@ function cargarRegistro(fechaId) {
 function toggleManual(show) {
   const box = document.getElementById("marcar-manual-box");
   const btn = document.getElementById("btn-manual");
-  if (!box||!btn) return;
+  if (!box || !btn) return;
   box.style.display = show ? "block" : "none";
   btn.style.display  = show ? "none"  : "block";
   if (show) {
     const ausentes = Array.from(document.querySelectorAll("#lista-ausentes li span:first-child"))
-      .map(el => el.textContent.trim()).filter(Boolean);
-    const sel = document.getElementById("sel-manual");
-    sel.innerHTML = '<option value="">— Elegí un alumno —</option>' +
-      ausentes.map(a => `<option value="${a}">${a}</option>`).join("");
+      .map(function(el){ return el.textContent.trim(); }).filter(Boolean);
+    const lista = document.getElementById("lista-manual-check");
+    if (!lista) return;
+    lista.innerHTML = ausentes.length === 0
+      ? '<p class="empty-hint">No hay ausentes</p>'
+      : ausentes.map(function(a){
+          return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;cursor:pointer;font-size:14px;">' +
+            '<input type="checkbox" value="' + a + '" style="width:18px;height:18px;cursor:pointer;accent-color:#1A3A5C;"/>' +
+            a + '</label>';
+        }).join("");
     document.getElementById("manual-msg").innerHTML = "";
+    var btn2 = document.getElementById("btn-sel-todos");
+    if (btn2) btn2.textContent = "Seleccionar todos";
   }
 }
 
-function marcarManual() {
-  const sel    = document.getElementById("sel-manual");
-  const nombre = sel.value;
-  if (!nombre || !fechaActual) return;
-  const btn  = document.querySelector("#marcar-manual-box .btn-primary");
-  btn.disabled = true; btn.textContent = "Registrando...";
-  const hora = new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
-  const key  = nombre.replace(/\s+/g,"_").toLowerCase();
-  db.ref(getCursoPath("presentes", fechaActual, key))
-    .set({ nombre, hora, timestamp: Date.now(), manual: true })
-    .then(() => {
-      document.getElementById("manual-msg").innerHTML =
-        `<span style="color:#15803d;">✓ ${nombre} marcado presente · ${hora}</span>`;
-      btn.disabled=false; btn.textContent="Marcar presente";
-      sel.value="";
-      setTimeout(() => toggleManual(false), 1500);
-    });
+function seleccionarTodos() {
+  var checks = document.querySelectorAll("#lista-manual-check input[type=checkbox]");
+  var allChecked = Array.from(checks).every(function(c){ return c.checked; });
+  checks.forEach(function(c){ c.checked = !allChecked; });
+  var btn = document.getElementById("btn-sel-todos");
+  if (btn) btn.textContent = allChecked ? "Seleccionar todos" : "Deseleccionar todos";
 }
 
-// ── Exportar CSV ──────────────────────────────────────────
+async function marcarManual() {
+  var checks  = document.querySelectorAll("#lista-manual-check input[type=checkbox]:checked");
+  var nombres = Array.from(checks).map(function(c){ return c.value; });
+  if (nombres.length === 0 || !fechaActual) {
+    document.getElementById("manual-msg").innerHTML =
+      '<span style="color:#dc2626;">Selecciona al menos un alumno.</span>';
+    return;
+  }
+  var btn  = document.querySelector("#marcar-manual-box .btn-primary");
+  btn.disabled = true; btn.textContent = "Registrando...";
+  var hora = new Date().toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
+  var promises = nombres.map(function(nombre) {
+    var key = nombre.replace(/\s+/g,"_").toLowerCase();
+    return db.ref(getCursoPath("presentes", fechaActual, key))
+      .set({ nombre: nombre, hora: hora, timestamp: Date.now(), manual: true });
+  });
+  await Promise.all(promises);
+  var n = nombres.length;
+  document.getElementById("manual-msg").innerHTML =
+    '<span style="color:#15803d;">✓ ' + n + ' alumno' + (n > 1 ? 's marcados' : ' marcado') + ' presente · ' + hora + '</span>';
+  btn.disabled = false; btn.textContent = "Marcar presentes";
+  setTimeout(function(){ toggleManual(false); }, 1500);
+}
 function exportCSV() {
   const d = window._exportData;
   if (!d) return;
