@@ -703,7 +703,7 @@ async function generarExcelBlob() {
   const alumnos    = Object.values(alumnosObj);
   const XLSX       = window.XLSXStyle || window.XLSX;
   const wb         = XLSX.utils.book_new();
-  const meses = [[1,"Enero"],[2,"Febrero"],[3,"Marzo"],[4,"Abril"],[5,"Mayo"],[6,"Junio"],
+  const meses = [[3,"Marzo"],[4,"Abril"],[5,"Mayo"],[6,"Junio"],
                  [7,"Julio"],[8,"Agosto"],[9,"Septiembre"],[10,"Octubre"],[11,"Noviembre"],[12,"Diciembre"]];
   function thinBorder(){ const s={style:"thin",color:{rgb:"B0BEC5"}}; return {top:s,bottom:s,left:s,right:s}; }
   function outerBorder(){ const s={style:"medium",color:{rgb:"1A3A5C"}}; return {top:s,bottom:s,left:s,right:s}; }
@@ -834,7 +834,7 @@ async function exportarPlanillaCompleta() {
     const XLSX       = window.XLSXStyle || window.XLSX;
     const wb         = XLSX.utils.book_new();
 
-    const meses = [[1,"Enero"],[2,"Febrero"],[3,"Marzo"],[4,"Abril"],[5,"Mayo"],[6,"Junio"],
+    const meses = [[3,"Marzo"],[4,"Abril"],[5,"Mayo"],[6,"Junio"],
                    [7,"Julio"],[8,"Agosto"],[9,"Septiembre"],[10,"Octubre"],[11,"Noviembre"],[12,"Diciembre"]];
 
     function thinBorder() { const s={style:"thin",color:{rgb:"B0BEC5"}}; return {top:s,bottom:s,left:s,right:s}; }
