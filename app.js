@@ -26,6 +26,167 @@ function dbPath(precId, ...parts) {
 // ══════════════════════════════════════════════════════════
 //  PANEL ADMIN
 // ══════════════════════════════════════════════════════════
+async function backupTodoADrive() {
+  const btn = document.querySelector("#tab-backup .btn-primary");
+  btn.disabled = true; btn.textContent = "Procesando...";
+  const prog = document.getElementById("backup-progress");
+  prog.innerHTML = "";
+
+  // Auth Google Drive first
+  if (!gdriveToken) {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: window.GDRIVE_CLIENT_ID, scope: GDRIVE_SCOPE,
+      callback: async function(resp) {
+        if (resp.error) {
+          prog.innerHTML = "<span style=\"color:#dc2626;\">Error al conectar con Google Drive.</span>";
+          btn.disabled = false; btn.textContent = "Subir todos los Excel a Drive";
+          return;
+        }
+        gdriveToken = resp.access_token;
+        await ejecutarBackup(btn, prog);
+      }
+    });
+    client.requestAccessToken();
+    return;
+  }
+  await ejecutarBackup(btn, prog);
+}
+
+async function ejecutarBackup(btn, prog) {
+  try {
+    const snap = await db.ref("preceptores").once("value");
+    const precs = snap.val() || {};
+    const lista = Object.entries(precs);
+    let html = "";
+
+    for (let i = 0; i < lista.length; i++) {
+      const [precId, prec] = lista[i];
+      const cursos = prec.cursos || [];
+      prog.innerHTML = html + `<div style="color:#2563eb;font-size:13px;">Procesando ${prec.nombre}...</div>`;
+
+      for (const curso of cursos) {
+        const cid = curso.replace(/[°\s]/g,"_");
+        try {
+          // Load data for this preceptor/curso
+          const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
+            db.ref("preceptores/" + precId + "/datos/cursos/" + cid + "/fechas").once("value"),
+            db.ref("preceptores/" + precId + "/datos/cursos/" + cid + "/presentes").once("value"),
+            db.ref("preceptores/" + precId + "/datos/cursos/" + cid + "/alumnos").once("value")
+          ]);
+
+          const fechas    = fechasSnap.val()    || {};
+          const presentes = presentesSnap.val() || {};
+          const alumnosObj= alumnosSnap.val()   || {};
+          const alumnos   = Object.values(alumnosObj);
+
+          if (alumnos.length === 0) continue;
+
+          const excelBlob = await generarExcelBlobParaPreceptor(alumnos, fechas, presentes, curso, prec.nombre);
+          const cursoFile = curso.replace(/[°\s]/g,"_");
+          const nombre    = "Asistencia_" + cursoFile + "_" + YEAR + ".xlsx";
+          const carpeta   = "Backup IFD12 - " + prec.nombre;
+
+          const folderId  = await obtenerOCrearCarpeta(carpeta);
+          const existente = await buscarArchivo(nombre, folderId);
+          if (existente) await actualizarArchivoBlob(existente, excelBlob);
+          else await crearArchivoBlob(nombre, excelBlob, folderId);
+
+          html += `<div style="color:#15803d;font-size:13px;">✓ ${prec.nombre} · ${curso}</div>`;
+        } catch(e) {
+          html += `<div style="color:#dc2626;font-size:13px;">✗ Error en ${prec.nombre} · ${curso}</div>`;
+        }
+        prog.innerHTML = html;
+      }
+    }
+    html += `<div style="font-weight:600;color:#15803d;margin-top:8px;font-size:14px;">Backup completado.</div>`;
+    prog.innerHTML = html;
+  } catch(e) {
+    prog.innerHTML = "<span style=\"color:#dc2626;\">Error general: " + e.message + "</span>";
+  }
+  btn.disabled = false; btn.textContent = "Subir todos los Excel a Drive";
+}
+
+async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNombre, nombrePreceptor) {
+  const XLSX = window.XLSXStyle || window.XLSX;
+  const wb   = XLSX.utils.book_new();
+  const meses = [[3,"Marzo"],[4,"Abril"],[5,"Mayo"],[6,"Junio"],
+                 [7,"Julio"],[8,"Agosto"],[9,"Septiembre"],[10,"Octubre"],[11,"Noviembre"],[12,"Diciembre"]];
+
+  function thinBorder(){ const s={style:"thin",color:{rgb:"B0BEC5"}}; return {top:s,bottom:s,left:s,right:s}; }
+  function outerBorder(){ const s={style:"medium",color:{rgb:"1A3A5C"}}; return {top:s,bottom:s,left:s,right:s}; }
+  const S = {
+    hdr:   {font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:11},fill:{fgColor:{rgb:"1A3A5C"}},alignment:{horizontal:"center",vertical:"center"},border:outerBorder()},
+    sub:   {font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:9}, fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    meta:  {font:{name:"Calibri",bold:true,color:{rgb:"1A3A5C"},sz:8}, fill:{fgColor:{rgb:"D6E4F0"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    body:  {font:{name:"Calibri",sz:8},fill:{fgColor:{rgb:"FFFFFF"}},alignment:{horizontal:"left",vertical:"center"},border:thinBorder()},
+    bodyAlt:{font:{name:"Calibri",sz:8},fill:{fgColor:{rgb:"F2F7FB"}},alignment:{horizontal:"left",vertical:"center"},border:thinBorder()},
+    num:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"D6E4F0"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    wkd:   {font:{name:"Calibri",sz:8,color:{rgb:"999999"}},fill:{fgColor:{rgb:"ECECEC"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    pres:  {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"155724"}},fill:{fgColor:{rgb:"D4EDDA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    aus:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"721C24"}},fill:{fgColor:{rgb:"F8D7DA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    tot:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"EAF0FB"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    dayHdr:{font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:8},fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+  };
+  const dayNames = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
+
+  for (const [mNum, mName] of meses) {
+    const daysInMonth = new Date(YEAR,mNum,0).getDate();
+    const dayWd = {};
+    for (let d=1;d<=daysInMonth;d++) dayWd[d]=(new Date(YEAR,mNum-1,d).getDay()+6)%7;
+    const ws = {}; const merges = []; const colWidths = [];
+    function setCell(r,c,v,style){ const addr=XLSX.utils.encode_cell({r,c}); ws[addr]={v,s:style}; }
+    const totalCols = daysInMonth + 5;
+    setCell(0,0,"INSTITUCION DE FORMACION DOCENTE N 12  REGISTRO DE ASISTENCIA " + YEAR,S.hdr);
+    merges.push({s:{r:0,c:0},e:{r:0,c:totalCols-1}});
+    setCell(1,0,mName.toUpperCase() + "  CURSO: " + cursoNombre + "  TURNO: " + TURNO + "  PRECEPTOR/A: " + nombrePreceptor,S.sub);
+    merges.push({s:{r:1,c:0},e:{r:1,c:totalCols-1}});
+    setCell(2,0,"N",S.dayHdr); setCell(2,1,"APELLIDO Y NOMBRE",S.dayHdr);
+    for (let d=1;d<=daysInMonth;d++) setCell(2,d+1,d,dayWd[d]>=5?S.wkd:S.dayHdr);
+    setCell(2,daysInMonth+2,"P",{...S.dayHdr,fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(2,daysInMonth+3,"A",{...S.dayHdr,fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(2,daysInMonth+4,"T",{...S.dayHdr,fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(3,0,"",S.meta); setCell(3,1,"",S.meta);
+    for (let d=1;d<=daysInMonth;d++) setCell(3,d+1,dayNames[(new Date(YEAR,mNum-1,d).getDay()+6)%7],dayWd[d]>=5?S.wkd:S.meta);
+    for (let o=0;o<3;o++) setCell(3,daysInMonth+2+o,"",S.meta);
+
+    for (let i=0;i<Math.max(alumnos.length,24);i++) {
+      const r=i+4; const nombre=alumnos[i]||""; const base=i%2!==0?S.bodyAlt:S.body;
+      setCell(r,0,nombre?i+1:"",S.num); setCell(r,1,nombre,base);
+      let tP=0,tA=0;
+      for (let d=1;d<=daysInMonth;d++) {
+        const wd=dayWd[d];
+        const fid=YEAR+"-"+String(mNum).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+        if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
+        if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        const pd=presentes[fid]?Object.values(presentes[fid]):[];
+        const np=pd.map(function(p){return p.nombre.trim().toLowerCase();});
+        const nn=nombre.trim().toLowerCase();
+        const ok=np.some(function(p){return p===nn||nn.split(" ").some(function(pt){return pt.length>2&&p.includes(pt);});});
+        if(ok){setCell(r,d+1,"P",S.pres);tP++;}else{setCell(r,d+1,"A",S.aus);tA++;}
+      }
+      if(nombre){
+        const dataStart=XLSX.utils.encode_cell({r,c:2});
+        const dataEnd=XLSX.utils.encode_cell({r,c:daysInMonth+1});
+        const pColL=XLSX.utils.encode_col(daysInMonth+2);
+        const aColL=XLSX.utils.encode_col(daysInMonth+3);
+        const rowNum=r+1; const rangeRef=dataStart+":"+dataEnd;
+        ws[XLSX.utils.encode_cell({r,c:daysInMonth+2})]={v:tP,f:'COUNTIF('+rangeRef+',"P")',t:'n',s:S.pres};
+        ws[XLSX.utils.encode_cell({r,c:daysInMonth+3})]={v:tA,f:'COUNTIF('+rangeRef+',"A")',t:'n',s:S.aus};
+        ws[XLSX.utils.encode_cell({r,c:daysInMonth+4})]={v:tP+tA,f:pColL+rowNum+"+"+aColL+rowNum,t:'n',s:S.tot};
+      } else { for(let o=0;o<3;o++) setCell(r,daysInMonth+2+o,"",S.tot); }
+    }
+    colWidths.push({wch:5},{wch:28});
+    for(let d=0;d<daysInMonth;d++) colWidths.push({wch:3.5});
+    colWidths.push({wch:5},{wch:5},{wch:5});
+    ws["!ref"]=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:29,c:totalCols-1}});
+    ws["!merges"]=merges; ws["!cols"]=colWidths;
+    ws["!rows"]=[{hpt:22},{hpt:16},{hpt:16},{hpt:13},...Array(26).fill({hpt:15})];
+    XLSX.utils.book_append_sheet(wb, ws, mName);
+  }
+  const wbOut = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+  return new Blob([wbOut], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+
 function renderAdminPanel() {
   const u = currentUser;
   document.getElementById("app").innerHTML = `
@@ -41,12 +202,27 @@ function renderAdminPanel() {
       <div class="tabs">
         <button class="tab active" onclick="showTab('tab-prec', this)">Preceptores</button>
         <button class="tab" onclick="showTab('tab-add', this)">Agregar preceptor</button>
+        <button class="tab" onclick="showTab('tab-backup', this)">Backup Drive</button>
       </div>
 
       <div id="tab-prec" class="tab-content active">
         <div class="card">
           <h2 class="card-title">Preceptores registrados</h2>
           <div id="lista-prec"><p class="empty-hint">Cargando...</p></div>
+        </div>
+      </div>
+
+      <div id="tab-backup" class="tab-content">
+        <div class="card">
+          <h2 class="card-title">Backup a Google Drive</h2>
+          <p style="font-size:14px;color:#6b7280;margin-bottom:1rem;">
+            Genera y sube el Excel anual de cada preceptor a tu Google Drive.
+            Se crea una carpeta por preceptor con todos sus cursos.
+          </p>
+          <button class="btn-primary" onclick="backupTodoADrive()">
+            Subir todos los Excel a Drive
+          </button>
+          <div id="backup-progress" style="margin-top:1rem;"></div>
         </div>
       </div>
 
