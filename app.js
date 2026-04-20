@@ -364,7 +364,7 @@ function renderPreceptorPanel(fromAdmin = false) {
       </header>
 
       <div class="tabs">
-        <button class="tab active" onclick="showTab('tab-alumnos', this)">Alumnos</button>
+        <button class="tab active" onclick="showTab('tab-alumnos', this)">Estudiantes</button>
         <button class="tab" onclick="showTab('tab-qr', this)">Código QR</button>
         <button class="tab" onclick="showTab('tab-registro', this)">Registro</button>
       </div>
@@ -372,7 +372,7 @@ function renderPreceptorPanel(fromAdmin = false) {
       <!-- Alumnos -->
       <div id="tab-alumnos" class="tab-content active">
         <div class="card">
-          <h2 class="card-title">Lista de alumnos — ${cursoActivo}</h2>
+          <h2 class="card-title">Lista de estudiantes — ${cursoActivo}</h2>
           <div class="row-gap">
             <input id="inp-alumno" type="text" class="inp" placeholder="Apellido y nombre"
               onkeydown="if(event.key==='Enter')addAlumno()"/>
@@ -516,18 +516,27 @@ function removeAlumno(idx) {
   saveAlumnos();
 }
 
+function editarAlumno(idx) {
+  const nombre = alumnosLista[idx];
+  const nuevo  = prompt("Editar nombre del estudiante:", nombre);
+  if (!nuevo || !nuevo.trim() || nuevo.trim() === nombre) return;
+  alumnosLista[idx] = nuevo.trim();
+  renderTags();
+  saveAlumnos();
+}
+
 function renderTags() {
   const el = document.getElementById("alumno-tags");
   if (!el) return;
   el.innerHTML = alumnosLista.length === 0
-    ? `<span class="empty-hint">Sin alumnos cargados</span>`
+    ? `<span class="empty-hint">Sin estudiantes cargados</span>`
     : alumnosLista.map((a,i) =>
         `<span class="tag">${a}<button onclick="removeAlumno(${i})">×</button></span>`
       ).join("");
 }
 
 function limpiarAlumnos() {
-  if (!confirm("¿Limpiar toda la lista?")) return;
+  if (!confirm("¿Limpiar toda la lista de estudiantes?")) return;
   alumnosLista = [];
   renderTags();
   db.ref(getCursoPath("alumnos")).remove();
