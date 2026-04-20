@@ -531,7 +531,7 @@ function renderTags() {
   el.innerHTML = alumnosLista.length === 0
     ? `<span class="empty-hint">Sin estudiantes cargados</span>`
     : alumnosLista.map((a,i) =>
-        `<span class="tag">${a}<button onclick="removeAlumno(${i})">×</button></span>`
+        `<span class="tag">${a}<button onclick="editarAlumno(${i})" title="Editar" style="color:#2563eb;font-size:13px;margin-right:3px;">✎</button><button onclick="removeAlumno(${i})" title="Eliminar">×</button></span>`
       ).join("");
 }
 
