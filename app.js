@@ -7,15 +7,6 @@ const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const YEAR      = 2026;
 
-// ── Helpers ───────────────────────────────────────────────// ══════════════════════════════════════════════════════════
-//  APP — Panel Admin + Panel Preceptor + Vista Alumno
-// ══════════════════════════════════════════════════════════
-
-const dayNames  = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
-const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
-                   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const YEAR      = 2026;
-
 // ── Helpers ───────────────────────────────────────────────
 function getFechaHoy() {
   const now = new Date();

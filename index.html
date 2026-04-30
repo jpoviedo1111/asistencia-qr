@@ -4,35 +4,30 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Asistencia QR · IFD N°12</title>
-</head>
-<body>
-  <div id="app" style="padding:2rem;font-family:sans-serif;">
-    <p>Cargando...</p>
-  </div>
-  <script>
-    window.onerror = function(msg, src, line, col, err) {
-      document.getElementById("app").innerHTML =
-        '<div style="padding:1rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-family:sans-serif;">' +
-        '<b style="color:#dc2626;">Error detectado:</b><br>' +
-        '<code style="font-size:13px;">' + msg + '</code><br>' +
-        '<small style="color:#6b7280;">Archivo: ' + src + ' línea ' + line + '</small>' +
-        '</div>';
-      return false;
-    };
-  </script>
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      document.getElementById("app").innerHTML =
+        '<div style="padding:1rem;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-family:sans-serif;margin:2rem;">' +
+        '<b style="color:#dc2626;">Error detectado:</b><br>' +
+        '<code style="font-size:13px;">' + msg + '</code><br>' +
+        '<small style="color:#6b7280;">Archivo: ' + src + ' linea ' + line + '</small>' +
+        '</div>';
+      return false;
+    };
+  </script>
+
   <script src="config.js"></script>
   <script src="auth.js"></script>
   <script src="app.js"></script>
-  <script>
-    // Detectar token de Google Drive al volver del redirect OAuth
-    checkDriveTokenFromRedirect();
-  </script>
 </body>
 </html>
