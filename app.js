@@ -7,6 +7,15 @@ const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const YEAR      = 2026;
 
+// ── Helpers ───────────────────────────────────────────────// ══════════════════════════════════════════════════════════
+//  APP — Panel Admin + Panel Preceptor + Vista Alumno
+// ══════════════════════════════════════════════════════════
+
+const dayNames  = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
+const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const YEAR      = 2026;
+
 // ── Helpers ───────────────────────────────────────────────
 function getFechaHoy() {
   const now = new Date();
@@ -25,50 +34,40 @@ function dbPath(precId, ...parts) {
 
 // ══════════════════════════════════════════════════════════
 //  MANEJO DEL TOKEN DE GOOGLE DRIVE AL VOLVER DEL REDIRECT
-//  (ejecutar al inicio, antes de renderizar nada)
+//  Usando Firebase getRedirectResult para recuperar el token
 // ══════════════════════════════════════════════════════════
 function checkDriveTokenFromRedirect() {
-  const hash = window.location.hash;
-  if (!hash || !hash.includes("access_token")) return;
+  auth.getRedirectResult().then(function(result) {
+    if (!result || !result.credential) return;
 
-  const params = new URLSearchParams(hash.substring(1));
-  const token  = params.get("access_token");
-  if (!token) return;
+    // Recuperar el access token de Google (incluye scope de Drive)
+    const token = result.credential.accessToken;
+    if (!token) return;
+    gdriveToken = token;
 
-  // Guardar token y limpiar la URL
-  gdriveToken = token;
-  history.replaceState(null, "", location.pathname);
+    // Recuperar acción pendiente
+    const accion = sessionStorage.getItem("driveAction");
+    sessionStorage.removeItem("driveAction");
 
-  // Recuperar la acción pendiente
-  const accion  = sessionStorage.getItem("driveAction");
-  const precId  = sessionStorage.getItem("drivePrec");
-  const cursoId = sessionStorage.getItem("driveCurso");
-  sessionStorage.removeItem("driveAction");
-  sessionStorage.removeItem("drivePrec");
-  sessionStorage.removeItem("driveCurso");
-
-  if (accion === "exportar" && precId && cursoId) {
-    // Restaurar contexto mínimo y ejecutar la subida
-    // La página ya habrá renderizado el panel; esperamos un tick
-    setTimeout(async function() {
-      const exportData = window._exportData;
-      if (exportData) {
-        subirArchivoDrive(exportData);
-      } else {
-        setDriveMsg("Token obtenido. Seleccioná la fecha nuevamente y presioná Drive.", "info");
-      }
-    }, 300);
-  } else if (accion === "backup") {
-    setTimeout(function() {
-      ejecutarBackupSiHayBtn();
-    }, 300);
-  }
-}
-
-function ejecutarBackupSiHayBtn() {
-  const btn  = document.querySelector("#tab-backup .btn-primary");
-  const prog = document.getElementById("backup-progress");
-  if (btn && prog) ejecutarBackup(btn, prog);
+    if (accion === "exportar") {
+      setTimeout(function() {
+        const exportData = window._exportData;
+        if (exportData) {
+          subirArchivoDrive(exportData);
+        } else {
+          setDriveMsg("✓ Drive conectado. Seleccioná la fecha y presioná Drive.", "success");
+        }
+      }, 500);
+    } else if (accion === "backup") {
+      setTimeout(function() {
+        const btn  = document.querySelector("#tab-backup .btn-primary");
+        const prog = document.getElementById("backup-progress");
+        if (btn && prog) ejecutarBackup(btn, prog);
+      }, 500);
+    }
+  }).catch(function(err) {
+    console.warn("getRedirectResult error:", err);
+  });
 }
 
 // ══════════════════════════════════════════════════════════
@@ -102,7 +101,7 @@ async function ejecutarBackup(btn, prog) {
       prog.innerHTML = html + `<div style="color:#2563eb;font-size:13px;">Procesando ${prec.nombre}...</div>`;
 
       for (const curso of cursos) {
-        const cid = curso.replace(/[°\s]/g,"_");
+        const cid = getCursoId(curso);
         try {
           const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
             db.ref("preceptores/" + precId + "/datos/cursos/" + cid + "/fechas").once("value"),
@@ -375,7 +374,7 @@ let fechaActual  = null;
 
 function renderPreceptorPanel(fromAdmin = false) {
   const p      = currentData;
-  const cursos = p.cursos || [];
+  const cursos = (p.cursos || []).filter(c => c && c !== "null");
   if (!cursoActivo || !cursos.includes(cursoActivo)) cursoActivo = cursos[0] || null;
 
   const cursoId = cursoActivo ? cursoActivo.replace(/[°\s]/g, "_") : "";
@@ -525,8 +524,12 @@ function showTab(id, btn) {
 // ── Alumnos ───────────────────────────────────────────────
 let alumnosLista = [];
 
+function getCursoId(curso) {
+  return (curso || "").replace(/[°\.\s]/g,"_").replace(/_+/g,"_").replace(/_+$/,"_");
+}
+
 function getCursoPath(...parts) {
-  const cid = cursoActivo.replace(/[°\s]/g,"_");
+  const cid = getCursoId(cursoActivo);
   return [dbPath(currentData.id, "cursos", cid), ...parts].join("/");
 }
 
@@ -590,7 +593,7 @@ function generarQR() {
   const box = document.getElementById("qr-box");
   if (!box) return;
   box.innerHTML = "";
-  const cid = cursoActivo.replace(/[°\s]/g,"_");
+  const cid = getCursoId(cursoActivo);
   const url = `${location.origin}${location.pathname}?scan=1&prec=${currentData.id}&curso=${cid}`;
   new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 }
@@ -882,27 +885,34 @@ function exportarADrive() {
   autenticarDrive("exportar");
 }
 
-// ── CAMBIO PRINCIPAL: redirect en lugar de popup ──────────
+// ── Autenticar Drive usando Firebase (misma sesión de Google) ──
 function autenticarDrive(accion) {
-  const clientId   = window.GDRIVE_CLIENT_ID;
-  const scope      = encodeURIComponent(GDRIVE_SCOPE);
-  const redirectUri = location.origin + location.pathname;
-
-  // Guardar contexto en sessionStorage para restaurar después del redirect
   sessionStorage.setItem("driveAction", accion || "exportar");
-  if (currentData && currentData.id) sessionStorage.setItem("drivePrec", currentData.id);
-  if (cursoActivo) sessionStorage.setItem("driveCurso", cursoActivo.replace(/[°\s]/g,"_"));
 
-  const authUrl = "https://accounts.google.com/o/oauth2/v2/auth" +
-    "?client_id="      + clientId +
-    "&redirect_uri="   + encodeURIComponent(redirectUri) +
-    "&response_type=token" +
-    "&scope="          + scope +
-    "&include_granted_scopes=true" +
-    "&prompt=consent";
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope(GDRIVE_SCOPE);
+  provider.setCustomParameters({ prompt: "consent" });
 
-  // Redirect directo — funciona en móvil y escritorio sin popups
-  window.location.href = authUrl;
+  auth.signInWithPopup(provider).then(function(result) {
+    sessionStorage.removeItem("driveAction");
+    const token = result.credential.accessToken;
+    if (!token) { setDriveMsg("No se pudo obtener el token de Drive.", "error"); return; }
+    gdriveToken = token;
+    if (accion === "exportar" && window._exportData) {
+      subirArchivoDrive(window._exportData);
+    } else if (accion === "backup") {
+      const btn  = document.querySelector("#tab-backup .btn-primary");
+      const prog = document.getElementById("backup-progress");
+      if (btn && prog) ejecutarBackup(btn, prog);
+    }
+  }).catch(function(err) {
+    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
+      auth.signInWithRedirect(provider);
+    } else {
+      sessionStorage.removeItem("driveAction");
+      setDriveMsg("Error al conectar Drive: " + err.message, "error");
+    }
+  });
 }
 
 async function subirArchivoDrive(d) {
