@@ -92,7 +92,7 @@ async function ejecutarBackup(btn, prog) {
       prog.innerHTML = html + `<div style="color:#2563eb;font-size:13px;">Procesando ${prec.nombre}...</div>`;
 
       for (const curso of cursos) {
-        const cid = curso.replace(/[°\s]/g,"_");
+        const cid = getCursoId(curso);
         try {
           const [fechasSnap, presentesSnap, alumnosSnap] = await Promise.all([
             db.ref("preceptores/" + precId + "/datos/cursos/" + cid + "/fechas").once("value"),
@@ -365,7 +365,7 @@ let fechaActual  = null;
 
 function renderPreceptorPanel(fromAdmin = false) {
   const p      = currentData;
-  const cursos = p.cursos || [];
+  const cursos = (p.cursos || []).filter(c => c && c !== "null");
   if (!cursoActivo || !cursos.includes(cursoActivo)) cursoActivo = cursos[0] || null;
 
   const cursoId = cursoActivo ? cursoActivo.replace(/[°\s]/g, "_") : "";
@@ -515,8 +515,12 @@ function showTab(id, btn) {
 // ── Alumnos ───────────────────────────────────────────────
 let alumnosLista = [];
 
+function getCursoId(curso) {
+  return (curso || "").replace(/[°\.\s]/g,"_").replace(/_+/g,"_").replace(/_+$/,"_");
+}
+
 function getCursoPath(...parts) {
-  const cid = cursoActivo.replace(/[°\s]/g,"_");
+  const cid = getCursoId(cursoActivo);
   return [dbPath(currentData.id, "cursos", cid), ...parts].join("/");
 }
 
@@ -580,7 +584,7 @@ function generarQR() {
   const box = document.getElementById("qr-box");
   if (!box) return;
   box.innerHTML = "";
-  const cid = cursoActivo.replace(/[°\s]/g,"_");
+  const cid = getCursoId(cursoActivo);
   const url = `${location.origin}${location.pathname}?scan=1&prec=${currentData.id}&curso=${cid}`;
   new QRCode(box, { text: url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 }
