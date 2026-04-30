@@ -516,7 +516,8 @@ function showTab(id, btn) {
 let alumnosLista = [];
 
 function getCursoId(curso) {
-  return (curso || "").replace(/[°\.\s]/g,"_").replace(/_+/g,"_").replace(/_+$/,"_");
+  // Matches original Firebase key format: "3° 6°" -> "3__6_", "Ed. Fisica 3 6" -> "Ed__Fisica_3_6"
+  return (curso || "").replace(/[°\.\s]/g,"_");
 }
 
 function getCursoPath(...parts) {
