@@ -752,6 +752,28 @@ function cargarRegistro(fechaId) {
   db.ref(getCursoPath("fechas", fechaId)).once("value", snap => {
     const datos = snap.val();
     const total = datos?.alumnos ? Object.values(datos.alumnos) : [];
+    const tipoF = datos?.tipo || "normal";
+    const obsF  = datos?.observacion || "";
+
+    // Si es feriado/jornada mostrar aviso especial
+    if (tipoF !== "normal") {
+      const etiquetas = { feriado: "Feriado", jornada: "Jornada institucional", otro: "Sin clase" };
+      const label = etiquetas[tipoF] || tipoF;
+      document.getElementById("reg-stats").style.display = "block";
+      document.getElementById("s-total").textContent     = "-";
+      document.getElementById("s-presentes").textContent = "-";
+      document.getElementById("s-ausentes").textContent  = "-";
+      document.getElementById("lista-presentes").innerHTML =
+        '<li><div class="alerta-ausencia" style="margin:0;"><span style="font-size:16px;">📅</span>' +
+        '<div><strong>' + label + '</strong>' +
+        (obsF ? '<br><span style="font-size:12px;">' + obsF + '</span>' : '') +
+        '</div></div></li>';
+      document.getElementById("lista-ausentes").innerHTML =
+        '<li class="empty-hint">No aplica — dia sin clase</li>';
+      document.getElementById("btn-manual").style.display = "none";
+      window._exportData = { fecha: fechaId, presentes: [], ausentes: [], totalAlumnos: total };
+      return;
+    }
 
     regListener = db.ref(getCursoPath("presentes", fechaId));
     regListener.on("value", snap => {
@@ -799,6 +821,9 @@ async function verificarInasistencias(totalAlumnos) {
     let consecutivas = 0;
     for (let i = fechasOrdenadas.length - 1; i >= 0; i--) {
       const fid = fechasOrdenadas[i];
+      // Skip feriados/jornadas
+      const tipoFecha = fechas[fid] ? fechas[fid].tipo : "normal";
+      if (tipoFecha && tipoFecha !== "normal") continue;
       const pd = presentes[fid] ? Object.values(presentes[fid]) : [];
       const estuvo = pd.some(p => p.nombre === alumno);
       if (!estuvo) consecutivas++;
@@ -1322,14 +1347,18 @@ async function exportarPlanillaCompleta() {
           const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
           if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
           if (!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
-          // Mark feriado/jornada
+          // Mark feriado/jornada - neutral, no cuenta como P ni A
           const tipoFecha = fechas[fid].tipo;
           if (tipoFecha && tipoFecha !== "normal") {
-            const obs = fechas[fid].observacion || tipoFecha;
             const abrev = tipoFecha === "feriado" ? "F" : tipoFecha === "jornada" ? "J" : "X";
-            const festStyle = {...S.wkd, font:{...S.wkd.font, color:{rgb:"7C3AED"}}};
+            const festStyle = {
+              font:{name:"Calibri",bold:true,sz:8,color:{rgb:"7C3AED"}},
+              fill:{fgColor:{rgb:"EDE9FE"}},
+              alignment:{horizontal:"center",vertical:"center"},
+              border:thinBorder()
+            };
             setCell(r,d+1,abrev,festStyle);
-            continue;
+            continue; // No suma ni P ni A
           }
           if (!nombre){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
           const pd=presentes[fid]?Object.values(presentes[fid]):[];
