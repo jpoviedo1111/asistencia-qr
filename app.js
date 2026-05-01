@@ -1487,13 +1487,25 @@ async function exportarPlanillaCompleta() {
           const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
           if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
           if (!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+          // Si no hay presentes registrados para esta fecha, celda vacia
+          if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {
+            setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});
+            continue;
+          }
           // Mark feriado/jornada - neutral, no cuenta como P ni A
           const tipoFecha = fechas[fid].tipo;
           if (tipoFecha && tipoFecha !== "normal") {
             const abrev = tipoFecha === "feriado" ? "F" : tipoFecha === "jornada" ? "J" : tipoFecha === "suspension" ? "S" : "X";
+            const festColors = {
+              feriado:   { font:"155724", fill:"D4EDDA" }, // verde
+              jornada:   { font:"856404", fill:"FFF3CD" }, // amarillo
+              suspension:{ font:"0C5460", fill:"D1ECF1" }, // azul
+              otro:      { font:"7C3AED", fill:"EDE9FE" }  // violeta
+            };
+            const fc = festColors[tipoFecha] || festColors.otro;
             const festStyle = {
-              font:{name:"Calibri",bold:true,sz:8,color:{rgb:"7C3AED"}},
-              fill:{fgColor:{rgb:"EDE9FE"}},
+              font:{name:"Calibri",bold:true,sz:8,color:{rgb:fc.font}},
+              fill:{fgColor:{rgb:fc.fill}},
               alignment:{horizontal:"center",vertical:"center"},
               border:thinBorder()
             };
