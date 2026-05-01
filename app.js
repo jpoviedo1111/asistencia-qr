@@ -438,10 +438,37 @@ function renderPreceptorPanel(fromAdmin = false) {
       <!-- Registro -->
       <div id="tab-registro" class="tab-content">
         <div class="card">
-          <h2 class="card-title">Seleccioná una fecha</h2>
+          <div class="card-title-row">
+            <h2 class="card-title" style="margin:0;">Seleccioná una fecha</h2>
+            <button class="btn-outline sm" onclick="mostrarNuevaFecha()">+ Nueva fecha</button>
+          </div>
           <select id="sel-fecha" class="form-select" onchange="cargarRegistro(this.value)">
             <option value="">— Elegí una fecha —</option>
           </select>
+          <div id="nueva-fecha-box" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
+            <div class="form-group">
+              <label class="form-label">Fecha</label>
+              <input id="inp-nueva-fecha" type="date" class="inp"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo</label>
+              <select id="sel-tipo-fecha" class="form-select">
+                <option value="normal">Clase normal</option>
+                <option value="feriado">Feriado</option>
+                <option value="jornada">Jornada institucional</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="form-group" id="obs-box" style="display:none;">
+              <label class="form-label">Observación (aparece en el Excel)</label>
+              <input id="inp-obs" type="text" class="inp" placeholder="Ej: Jornada de capacitación docente"/>
+            </div>
+            <div class="row-gap" style="margin:0;">
+              <button class="btn-primary" onclick="crearFechaManual()">Crear fecha</button>
+              <button class="btn-outline" onclick="ocultarNuevaFecha()">Cancelar</button>
+            </div>
+            <div id="nueva-fecha-msg" style="margin-top:8px;font-size:13px;"></div>
+          </div>
         </div>
         <div id="alertas-inasistencias" style="margin-bottom:8px;"></div>
         <div id="reg-stats" style="display:none;">
@@ -533,8 +560,25 @@ function showTab(id, btn) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   document.getElementById(id).classList.add("active");
   btn.classList.add("active");
-  if (id === "tab-registro") loadFechas();
+  if (id === "tab-registro") { autoGenerarFechaHoy(); loadFechas(); }
   if (id === "tab-qr") generarQR();
+}
+
+async function autoGenerarFechaHoy() {
+  const hoy   = getFechaHoy();
+  const fecha = new Date(hoy + "T12:00:00");
+  const dia   = fecha.getDay(); // 0=dom, 6=sab
+  if (dia === 0 || dia === 6) return; // No generar en finde
+
+  const snap = await db.ref(getCursoPath("fechas", hoy)).once("value");
+  if (snap.val()) return; // Ya existe
+
+  const alumnosSnap = await db.ref(getCursoPath("alumnos")).once("value");
+  const alumnosObj  = alumnosSnap.val() || {};
+  const alumnos     = Object.values(alumnosObj).filter(Boolean);
+  if (alumnos.length === 0) return;
+
+  await db.ref(getCursoPath("fechas", hoy)).set({ fecha: hoy, alumnos: alumnos });
 }
 
 // ── Alumnos ───────────────────────────────────────────────
@@ -628,6 +672,66 @@ function generarQR() {
 }
 
 // ── Registro ──────────────────────────────────────────────
+function mostrarNuevaFecha() {
+  const box = document.getElementById("nueva-fecha-box");
+  if (!box) return;
+  box.style.display = "block";
+  // Set default date to today
+  const hoy = getFechaHoy();
+  document.getElementById("inp-nueva-fecha").value = hoy;
+  document.getElementById("sel-tipo-fecha").value = "normal";
+  document.getElementById("obs-box").style.display = "none";
+  document.getElementById("nueva-fecha-msg").innerHTML = "";
+  // Show obs when not normal
+  document.getElementById("sel-tipo-fecha").onchange = function() {
+    document.getElementById("obs-box").style.display =
+      this.value !== "normal" ? "block" : "none";
+  };
+}
+
+function ocultarNuevaFecha() {
+  const box = document.getElementById("nueva-fecha-box");
+  if (box) box.style.display = "none";
+}
+
+async function crearFechaManual() {
+  const fechaId = document.getElementById("inp-nueva-fecha").value;
+  const tipo    = document.getElementById("sel-tipo-fecha").value;
+  const obs     = document.getElementById("inp-obs").value.trim();
+  const msg     = document.getElementById("nueva-fecha-msg");
+
+  if (!fechaId) { msg.innerHTML = '<span style="color:#dc2626;">Selecciona una fecha.</span>'; return; }
+
+  // Check if already exists
+  const snap = await db.ref(getCursoPath("fechas", fechaId)).once("value");
+
+  if (snap.val() && tipo === "normal") {
+    msg.innerHTML = '<span style="color:#2563eb;">Esa fecha ya existe. Podés seleccionarla en el selector.</span>';
+    return;
+  }
+
+  const alumnosSnap = await db.ref(getCursoPath("alumnos")).once("value");
+  const alumnosObj  = alumnosSnap.val() || {};
+  const alumnos     = Object.values(alumnosObj).filter(Boolean);
+
+  // Build fecha object
+  const fechaData = { fecha: fechaId, alumnos: alumnos };
+  if (tipo !== "normal") {
+    fechaData.tipo = tipo;
+    fechaData.observacion = obs || tipo;
+  }
+
+  await db.ref(getCursoPath("fechas", fechaId)).set(fechaData);
+  msg.innerHTML = '<span style="color:#15803d;">✓ Fecha creada correctamente.</span>';
+
+  // Refresh fecha selector and select new date
+  await loadFechas();
+  document.getElementById("sel-fecha").value = fechaId;
+  cargarRegistro(fechaId);
+
+  setTimeout(() => ocultarNuevaFecha(), 1500);
+}
+
 function loadFechas() {
   db.ref(getCursoPath("fechas")).once("value", snap => {
     const sel    = document.getElementById("sel-fecha");
@@ -1217,7 +1321,17 @@ async function exportarPlanillaCompleta() {
           const wd=dayWd[d];
           const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
           if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
-          if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+          if (!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+          // Mark feriado/jornada
+          const tipoFecha = fechas[fid].tipo;
+          if (tipoFecha && tipoFecha !== "normal") {
+            const obs = fechas[fid].observacion || tipoFecha;
+            const abrev = tipoFecha === "feriado" ? "F" : tipoFecha === "jornada" ? "J" : "X";
+            const festStyle = {...S.wkd, font:{...S.wkd.font, color:{rgb:"7C3AED"}}};
+            setCell(r,d+1,abrev,festStyle);
+            continue;
+          }
+          if (!nombre){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
           const pd=presentes[fid]?Object.values(presentes[fid]):[];
           const np=pd.map(p=>p.nombre.trim().toLowerCase());
           const nn=nombre.trim().toLowerCase();
