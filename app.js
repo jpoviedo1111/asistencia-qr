@@ -182,6 +182,14 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
         const fid=YEAR+"-"+String(mNum).padStart(2,"0")+"-"+String(d).padStart(2,"0");
         if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
         if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        const tipoFB = fechas[fid].tipo;
+        if (tipoFB && tipoFB !== "normal") {
+          const abrB = tipoFB==="feriado"?"F":tipoFB==="jornada"?"J":tipoFB==="suspension"?"S":"X";
+          const fcB = {feriado:{font:"155724",fill:"D4EDDA"},jornada:{font:"856404",fill:"FFF3CD"},suspension:{font:"0C5460",fill:"D1ECF1"},otro:{font:"7C3AED",fill:"EDE9FE"}}[tipoFB]||{font:"7C3AED",fill:"EDE9FE"};
+          setCell(r,d+1,abrB,{font:{name:"Calibri",bold:true,sz:8,color:{rgb:fcB.font}},fill:{fgColor:{rgb:fcB.fill}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
+          continue;
+        }
         const pd=presentes[fid]?Object.values(presentes[fid]):[];
         const np=pd.map(function(p){return p.nombre.trim().toLowerCase();});
         const nn=nombre.trim().toLowerCase();
@@ -1351,6 +1359,14 @@ async function generarExcelBlob() {
         const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
         if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
         if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        const tipoFG = fechas[fid].tipo;
+        if (tipoFG && tipoFG !== "normal") {
+          const abrG = tipoFG==="feriado"?"F":tipoFG==="jornada"?"J":tipoFG==="suspension"?"S":"X";
+          const fcG = {feriado:{font:"155724",fill:"D4EDDA"},jornada:{font:"856404",fill:"FFF3CD"},suspension:{font:"0C5460",fill:"D1ECF1"},otro:{font:"7C3AED",fill:"EDE9FE"}}[tipoFG]||{font:"7C3AED",fill:"EDE9FE"};
+          setCell(r,d+1,abrG,{font:{name:"Calibri",bold:true,sz:8,color:{rgb:fcG.font}},fill:{fgColor:{rgb:fcG.fill}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
+          continue;
+        }
         const pd=presentes[fid]?Object.values(presentes[fid]):[];
         const np=pd.map(p=>p.nombre.trim().toLowerCase());
         const nn=nombre.trim().toLowerCase();
@@ -1487,25 +1503,13 @@ async function exportarPlanillaCompleta() {
           const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
           if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
           if (!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
-          // Si no hay presentes registrados para esta fecha, celda vacia
-          if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {
-            setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});
-            continue;
-          }
           // Mark feriado/jornada - neutral, no cuenta como P ni A
           const tipoFecha = fechas[fid].tipo;
           if (tipoFecha && tipoFecha !== "normal") {
             const abrev = tipoFecha === "feriado" ? "F" : tipoFecha === "jornada" ? "J" : tipoFecha === "suspension" ? "S" : "X";
-            const festColors = {
-              feriado:   { font:"155724", fill:"D4EDDA" }, // verde
-              jornada:   { font:"856404", fill:"FFF3CD" }, // amarillo
-              suspension:{ font:"0C5460", fill:"D1ECF1" }, // azul
-              otro:      { font:"7C3AED", fill:"EDE9FE" }  // violeta
-            };
-            const fc = festColors[tipoFecha] || festColors.otro;
             const festStyle = {
-              font:{name:"Calibri",bold:true,sz:8,color:{rgb:fc.font}},
-              fill:{fgColor:{rgb:fc.fill}},
+              font:{name:"Calibri",bold:true,sz:8,color:{rgb:"7C3AED"}},
+              fill:{fgColor:{rgb:"EDE9FE"}},
               alignment:{horizontal:"center",vertical:"center"},
               border:thinBorder()
             };
