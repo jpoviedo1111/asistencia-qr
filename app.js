@@ -442,9 +442,33 @@ function renderPreceptorPanel(fromAdmin = false) {
             <h2 class="card-title" style="margin:0;">Seleccioná una fecha</h2>
             <button class="btn-outline sm" onclick="mostrarNuevaFecha()">+ Nueva fecha</button>
           </div>
-          <select id="sel-fecha" class="form-select" onchange="cargarRegistro(this.value)">
-            <option value="">— Elegí una fecha —</option>
-          </select>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="sel-fecha" class="form-select" onchange="cargarRegistro(this.value)" style="flex:1;">
+              <option value="">— Elegí una fecha —</option>
+            </select>
+            <button class="btn-outline sm" onclick="editarFechaActual()" id="btn-editar-fecha" style="display:none;white-space:nowrap;">✎ Editar</button>
+          </div>
+          <div id="editar-fecha-box" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
+            <div class="form-group">
+              <label class="form-label">Cambiar tipo de fecha</label>
+              <select id="sel-tipo-editar" class="form-select">
+                <option value="normal">Clase normal</option>
+                <option value="suspension">Suspension de actividades</option>
+                <option value="feriado">Feriado</option>
+                <option value="jornada">Jornada institucional</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+            <div class="form-group" id="obs-editar-box">
+              <label class="form-label">Observacion (opcional)</label>
+              <input id="inp-obs-editar" type="text" class="inp" placeholder="Ej: Suspension por paro docente"/>
+            </div>
+            <div class="row-gap" style="margin:0;">
+              <button class="btn-primary" onclick="guardarEdicionFecha()">Guardar cambios</button>
+              <button class="btn-outline" onclick="cancelarEdicionFecha()">Cancelar</button>
+            </div>
+            <div id="editar-fecha-msg" style="margin-top:8px;font-size:13px;"></div>
+          </div>
           <div id="nueva-fecha-box" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
             <div class="form-group">
               <label class="form-label">Fecha</label>
@@ -454,6 +478,7 @@ function renderPreceptorPanel(fromAdmin = false) {
               <label class="form-label">Tipo</label>
               <select id="sel-tipo-fecha" class="form-select">
                 <option value="normal">Clase normal</option>
+                <option value="suspension">Suspension de actividades</option>
                 <option value="feriado">Feriado</option>
                 <option value="jornada">Jornada institucional</option>
                 <option value="otro">Otro</option>
@@ -672,6 +697,66 @@ function generarQR() {
 }
 
 // ── Registro ──────────────────────────────────────────────
+function editarFechaActual() {
+  const box = document.getElementById("editar-fecha-box");
+  if (!box || !fechaActual) return;
+  box.style.display = "block";
+  document.getElementById("editar-fecha-msg").innerHTML = "";
+  // Load current tipo
+  db.ref(getCursoPath("fechas", fechaActual)).once("value", snap => {
+    const data = snap.val() || {};
+    const tipo = data.tipo || "normal";
+    const obs  = data.observacion || "";
+    document.getElementById("sel-tipo-editar").value = tipo;
+    document.getElementById("inp-obs-editar").value  = obs;
+  });
+}
+
+function cancelarEdicionFecha() {
+  const box = document.getElementById("editar-fecha-box");
+  if (box) box.style.display = "none";
+}
+
+async function guardarEdicionFecha() {
+  if (!fechaActual) return;
+  const tipo = document.getElementById("sel-tipo-editar").value;
+  const obs  = document.getElementById("inp-obs-editar").value.trim();
+  const msg  = document.getElementById("editar-fecha-msg");
+
+  msg.innerHTML = '<span style="color:#2563eb;">Guardando...</span>';
+
+  const update = { tipo: tipo };
+  if (tipo !== "normal") {
+    update.observacion = obs || tipo;
+  } else {
+    update.observacion = null;
+    update.tipo = null;
+  }
+
+  // Update only the tipo/observacion fields, keep alumnos intact
+  const snap = await db.ref(getCursoPath("fechas", fechaActual)).once("value");
+  const data = snap.val() || {};
+  if (tipo === "normal") {
+    delete data.tipo;
+    delete data.observacion;
+  } else {
+    data.tipo = tipo;
+    data.observacion = obs || tipo;
+  }
+  await db.ref(getCursoPath("fechas", fechaActual)).set(data);
+
+  // Si no es clase normal, borrar presentes automáticamente
+  if (tipo !== "normal") {
+    await db.ref(getCursoPath("presentes", fechaActual)).remove();
+  }
+
+  msg.innerHTML = '<span style="color:#15803d;">✓ Fecha actualizada. Presentes eliminados.</span>';
+  setTimeout(() => {
+    cancelarEdicionFecha();
+    cargarRegistro(fechaActual);
+  }, 1200);
+}
+
 function mostrarNuevaFecha() {
   const box = document.getElementById("nueva-fecha-box");
   if (!box) return;
@@ -744,6 +829,9 @@ function loadFechas() {
 }
 
 function cargarRegistro(fechaId) {
+  const btnEditar = document.getElementById("btn-editar-fecha");
+  if (btnEditar) btnEditar.style.display = fechaId ? "block" : "none";
+  cancelarEdicionFecha();
   if (!fechaId) { document.getElementById("reg-stats").style.display="none"; return; }
   if (regListener) regListener.off();
   fechaActual = fechaId;
@@ -757,7 +845,7 @@ function cargarRegistro(fechaId) {
 
     // Si es feriado/jornada mostrar aviso especial
     if (tipoF !== "normal") {
-      const etiquetas = { feriado: "Feriado", jornada: "Jornada institucional", otro: "Sin clase" };
+      const etiquetas = { feriado: "Feriado", jornada: "Jornada institucional", suspension: "Suspension de actividades", otro: "Sin clase" };
       const label = etiquetas[tipoF] || tipoF;
       document.getElementById("reg-stats").style.display = "block";
       document.getElementById("s-total").textContent     = "-";
@@ -785,6 +873,9 @@ function cargarRegistro(fechaId) {
       document.getElementById("s-total").textContent     = total.length;
       document.getElementById("s-presentes").textContent = presentes.length;
       document.getElementById("s-ausentes").textContent  = ausentes.length;
+      // Make sure manual button is visible for normal dates
+      const btnManual = document.getElementById("btn-manual");
+      if (btnManual) btnManual.style.display = "block";
 
       document.getElementById("lista-presentes").innerHTML = presentes.length === 0
         ? `<li class="empty-hint">Ningún alumno registrado aún</li>`
@@ -1350,7 +1441,7 @@ async function exportarPlanillaCompleta() {
           // Mark feriado/jornada - neutral, no cuenta como P ni A
           const tipoFecha = fechas[fid].tipo;
           if (tipoFecha && tipoFecha !== "normal") {
-            const abrev = tipoFecha === "feriado" ? "F" : tipoFecha === "jornada" ? "J" : "X";
+            const abrev = tipoFecha === "feriado" ? "F" : tipoFecha === "jornada" ? "J" : tipoFecha === "suspension" ? "S" : "X";
             const festStyle = {
               font:{name:"Calibri",bold:true,sz:8,color:{rgb:"7C3AED"}},
               fill:{fgColor:{rgb:"EDE9FE"}},
