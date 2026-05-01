@@ -1329,6 +1329,9 @@ async function generarExcelBlob() {
     aus:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"721C24"}},fill:{fgColor:{rgb:"F8D7DA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
     tot:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"EAF0FB"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
     dayHdr:{font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:8},fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    feriado:{font:{name:"Calibri",bold:true,sz:8,color:{rgb:"D97706"}},fill:{fgColor:{rgb:"FED7AA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    jornada:{font:{name:"Calibri",bold:true,sz:8,color:{rgb:"CA8A04"}},fill:{fgColor:{rgb:"FEF3C7"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
+    suspension:{font:{name:"Calibri",bold:true,sz:8,color:{rgb:"DC2626"}},fill:{fgColor:{rgb:"FECACA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()}
   };
   const dayNames = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
   for (const [mNum, mName] of meses) {
@@ -1363,8 +1366,8 @@ async function generarExcelBlob() {
         const tipoFG = fechas[fid].tipo;
         if (tipoFG && tipoFG !== "normal") {
           const abrG = tipoFG==="feriado"?"F":tipoFG==="jornada"?"J":tipoFG==="suspension"?"S":"X";
-          const fcG = {feriado:{font:"D97706",fill:"FED7AA"},jornada:{font:"CA8A04",fill:"FEF3C7"},suspension:{font:"DC2626",fill:"FECACA"},otro:{font:"7C3AED",fill:"EDE9FE"}}[tipoFG]||{font:"7C3AED",fill:"EDE9FE"};
-          setCell(r,d+1,abrG,{font:{name:"Calibri",bold:true,sz:8,color:{rgb:fcG.font}},fill:{fgColor:{rgb:fcG.fill}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
+          const estilo = tipoFG==="feriado"?S.feriado:tipoFG==="jornada"?S.jornada:tipoFG==="suspension"?S.suspension:S.body;
+          setCell(r,d+1,abrG,estilo);
           continue;
         }
         const pd=presentes[fid]?Object.values(presentes[fid]):[];
