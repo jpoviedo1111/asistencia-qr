@@ -150,7 +150,6 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
     aus:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"721C24"}},fill:{fgColor:{rgb:"F8D7DA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
     tot:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"EAF0FB"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
     dayHdr:{font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:8},fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
-    empty: {font:{name:"Calibri",sz:8,color:{rgb:"999999"}},fill:{fgColor:{rgb:"F0F0F0"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
   };
   const dayNames = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
 
@@ -182,23 +181,12 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
         const wd=dayWd[d];
         const fid=YEAR+"-"+String(mNum).padStart(2,"0")+"-"+String(d).padStart(2,"0");
         if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
-        // Celda sin clase registrada (no existe en fechas) - pintar gris claro
-        if (!fechas[fid]){setCell(r,d+1,"·",S.empty);continue;}
-        // Celda con clase pero sin presentes - pintar gris más claro
-        if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {
-          setCell(r,d+1,"·",{font:{name:"Calibri",sz:8,color:{rgb:"CCCCCC"}},fill:{fgColor:{rgb:"FAFAFA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
-          continue;
-        }
+        if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
         const tipoFB = fechas[fid].tipo;
         if (tipoFB && tipoFB !== "normal") {
           const abrB = tipoFB==="feriado"?"F":tipoFB==="jornada"?"J":tipoFB==="suspension"?"S":"X";
-          // COLORES CORRECTOS: Suspension=Rojo, Feriado=Naranja, Jornada=Amarillo
-          const fcB = {
-            feriado:   {font:"D97706", fill:"FED7AA"},      // Naranja
-            jornada:   {font:"CA8A04", fill:"FEF3C7"},      // Amarillo
-            suspension:{font:"DC2626", fill:"FECACA"},      // Rojo
-            otro:      {font:"7C3AED", fill:"EDE9FE"}       // Violeta
-          }[tipoFB]||{font:"7C3AED",fill:"EDE9FE"};
+          const fcB = {feriado:{font:"D97706",fill:"FED7AA"},jornada:{font:"CA8A04",fill:"FEF3C7"},suspension:{font:"DC2626",fill:"FECACA"},otro:{font:"7C3AED",fill:"EDE9FE"}}[tipoFB]||{font:"7C3AED",fill:"EDE9FE"};
           setCell(r,d+1,abrB,{font:{name:"Calibri",bold:true,sz:8,color:{rgb:fcB.font}},fill:{fgColor:{rgb:fcB.fill}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
           continue;
         }
@@ -206,20 +194,8 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
         const np=pd.map(function(p){return p.nombre.trim().toLowerCase();});
         const nn=nombre.trim().toLowerCase();
         const ok=np.some(function(p){return p===nn||nn.split(" ").some(function(pt){return pt.length>2&&p.includes(pt);});});
-        if(ok){
-          const cellAddr = XLSX.utils.encode_cell({r:r, c:d+1});
-          setCell(r,d+1,"P",S.pres);
-          // Agregar comentario si existe observación
-          const presente = pd.find(p => p.nombre.trim().toLowerCase() === nn);
-          if (presente && presente.observacion) {
-            if (!ws["!comments"]) ws["!comments"] = {};
-            ws["!comments"][cellAddr] = { author: "Alumno", text: presente.observacion };
-          }
-          tP++;
-        } else {
-          setCell(r,d+1,"A",S.aus);
-          tA++;
-        }
+        if(ok){setCell(r,d+1,"P",S.pres);tP++;}else{setCell(r,d+1,"A",S.aus);tA++;}
+      }
       if(nombre){
         const dataStart=XLSX.utils.encode_cell({r,c:2});
         const dataEnd=XLSX.utils.encode_cell({r,c:daysInMonth+1});
@@ -1199,10 +1175,6 @@ function renderFormAlumno(precId, cursoId, fechaId, alumnos) {
           ${opciones}
         </select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Observación (opcional)</label>
-        <input id="alumno-obs" type="text" class="inp" placeholder="Ej: Llegué tarde, excusa médica, etc."/>
-      </div>
       <button class="btn-big" id="btn-marcar" onclick="marcarPresente('${precId}','${cursoId}','${fechaId}')" disabled>
         Marcar presente
       </button>
@@ -1216,20 +1188,14 @@ function renderFormAlumno(precId, cursoId, fechaId, alumnos) {
 
 function marcarPresente(precId, cursoId, fechaId) {
   const sel    = document.getElementById("alumno-sel");
-  const obs    = document.getElementById("alumno-obs");
   const nombre = sel.value;
   if (!nombre) return;
   const btn  = document.getElementById("btn-marcar");
   btn.disabled=true; btn.textContent="Registrando...";
   const hora = new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
   const key  = nombre.replace(/\s+/g,"_").toLowerCase();
-  const obsText = obs ? obs.value.trim() : "";
-  
-  const presenteData = { nombre, hora, timestamp: Date.now() };
-  if (obsText) presenteData.observacion = obsText;
-  
   db.ref(`preceptores/${precId}/datos/cursos/${cursoId}/presentes/${fechaId}/${key}`)
-    .set(presenteData)
+    .set({ nombre, hora, timestamp: Date.now() })
     .then(() => {
       localStorage.setItem(`asist_${precId}_${cursoId}_${fechaId}`, nombre);
       document.getElementById("scan-body").innerHTML = `
@@ -1238,7 +1204,6 @@ function marcarPresente(precId, cursoId, fechaId) {
           <div style="font-size:17px;font-weight:600;">¡Presencia registrada!</div>
           <div style="margin-top:10px;font-size:15px;">${nombre}</div>
           <div style="margin-top:4px;font-size:13px;opacity:0.8;">${formatearFecha(fechaId)} · ${hora}</div>
-          ${obsText ? `<div style="margin-top:8px;font-size:12px;background:#f0fdf4;padding:8px;border-radius:4px;">📝 ${obsText}</div>` : ''}
         </div>
         <p style="text-align:center;font-size:13px;color:#9ca3af;margin-top:1rem;">Ya podés cerrar esta página.</p>`;
     });
@@ -1364,7 +1329,6 @@ async function generarExcelBlob() {
     aus:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"721C24"}},fill:{fgColor:{rgb:"F8D7DA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
     tot:   {font:{name:"Calibri",bold:true,sz:8,color:{rgb:"1A3A5C"}},fill:{fgColor:{rgb:"EAF0FB"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
     dayHdr:{font:{name:"Calibri",bold:true,color:{rgb:"FFFFFF"},sz:8},fill:{fgColor:{rgb:"2E6DA4"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
-    empty: {font:{name:"Calibri",sz:8,color:{rgb:"999999"}},fill:{fgColor:{rgb:"F0F0F0"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()},
   };
   const dayNames = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
   for (const [mNum, mName] of meses) {
@@ -1394,23 +1358,12 @@ async function generarExcelBlob() {
         const wd=dayWd[d];
         const fid=`${YEAR}-${String(mNum).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
         if (wd>=5){setCell(r,d+1,"-",S.wkd);continue;}
-        // Celda sin clase registrada (no existe en fechas) - pintar gris claro
-        if (!fechas[fid]){setCell(r,d+1,"·",S.empty);continue;}
-        // Celda con clase pero sin presentes - pintar gris más claro
-        if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {
-          setCell(r,d+1,"·",{font:{name:"Calibri",sz:8,color:{rgb:"CCCCCC"}},fill:{fgColor:{rgb:"FAFAFA"}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
-          continue;
-        }
+        if (!nombre||!fechas[fid]){setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
+        if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {setCell(r,d+1,"",{...base,alignment:{horizontal:"center",vertical:"center"}});continue;}
         const tipoFG = fechas[fid].tipo;
         if (tipoFG && tipoFG !== "normal") {
           const abrG = tipoFG==="feriado"?"F":tipoFG==="jornada"?"J":tipoFG==="suspension"?"S":"X";
-          // COLORES CORRECTOS: Suspension=Rojo, Feriado=Naranja, Jornada=Amarillo
-          const fcG = {
-            feriado:   {font:"D97706", fill:"FED7AA"},      // Naranja
-            jornada:   {font:"CA8A04", fill:"FEF3C7"},      // Amarillo
-            suspension:{font:"DC2626", fill:"FECACA"},      // Rojo
-            otro:      {font:"7C3AED", fill:"EDE9FE"}       // Violeta
-          }[tipoFG]||{font:"7C3AED",fill:"EDE9FE"};
+          const fcG = {feriado:{font:"D97706",fill:"FED7AA"},jornada:{font:"CA8A04",fill:"FEF3C7"},suspension:{font:"DC2626",fill:"FECACA"},otro:{font:"7C3AED",fill:"EDE9FE"}}[tipoFG]||{font:"7C3AED",fill:"EDE9FE"};
           setCell(r,d+1,abrG,{font:{name:"Calibri",bold:true,sz:8,color:{rgb:fcG.font}},fill:{fgColor:{rgb:fcG.fill}},alignment:{horizontal:"center",vertical:"center"},border:thinBorder()});
           continue;
         }
@@ -1418,20 +1371,8 @@ async function generarExcelBlob() {
         const np=pd.map(p=>p.nombre.trim().toLowerCase());
         const nn=nombre.trim().toLowerCase();
         const ok=np.some(p=>p===nn||nn.split(" ").some(pt=>pt.length>2&&p.includes(pt)));
-        if(ok){
-          const cellAddr = XLSX.utils.encode_cell({r:r, c:d+1});
-          setCell(r,d+1,"P",S.pres);
-          // Agregar comentario si existe observación
-          const presente = pd.find(p => p.nombre.trim().toLowerCase() === nn);
-          if (presente && presente.observacion) {
-            if (!ws["!comments"]) ws["!comments"] = {};
-            ws["!comments"][cellAddr] = { author: "Alumno", text: presente.observacion };
-          }
-          tP++;
-        } else {
-          setCell(r,d+1,"A",S.aus);
-          tA++;
-        }
+        if(ok){setCell(r,d+1,"P",S.pres);tP++;}else{setCell(r,d+1,"A",S.aus);tA++;}
+      }
       if(nombre){
         const dataStart=XLSX.utils.encode_cell({r,c:2});
         const dataEnd=XLSX.utils.encode_cell({r,c:daysInMonth+1});
