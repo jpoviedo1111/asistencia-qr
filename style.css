@@ -115,3 +115,54 @@ textarea.inp { resize: vertical; }
   .stat-num { font-size: 22px; }
   .panel-wrap { padding: 1rem .75rem 3rem; }
 }
+
+/* ── Modo oscuro ── */
+body.dark { background: #0f172a; color: #e2e8f0; }
+body.dark .card { background: #1e293b; border-color: #334155; }
+body.dark .login-card { background: #1e293b; border-color: #334155; }
+body.dark .panel-wrap { background: #0f172a; }
+body.dark .panel-title { color: #e2e8f0; }
+body.dark .panel-sub { color: #94a3b8; }
+body.dark .card-title { color: #e2e8f0; }
+body.dark .inp { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+body.dark .form-select { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+body.dark .form-label { color: #cbd5e1; }
+body.dark .btn-outline { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+body.dark .btn-outline:hover { background: #334155; }
+body.dark .tabs { border-color: #334155; }
+body.dark .tab { color: #94a3b8; }
+body.dark .tab.active { color: #e2e8f0; border-bottom-color: #60a5fa; }
+body.dark .tag { background: #334155; border-color: #475569; color: #e2e8f0; }
+body.dark .stat-card { background: #1e293b; border-color: #334155; }
+body.dark .stat-num { color: #e2e8f0; }
+body.dark .stat-lbl { color: #94a3b8; }
+body.dark .present-list li { border-color: #334155; }
+body.dark .badge-hora { background: #334155; color: #cbd5e1; }
+body.dark .prec-row { border-color: #334155; }
+body.dark .empty-hint { color: #64748b; }
+body.dark .loading { color: #94a3b8; }
+body.dark .phone-body { background: #1e293b; border-color: #334155; }
+body.dark .phone-title { color: #e2e8f0; }
+body.dark .phone-sub { color: #94a3b8; }
+body.dark .red-list li { color: #94a3b8; }
+body.dark .login-title { color: #e2e8f0; }
+body.dark .login-sub { color: #94a3b8; }
+
+/* ── Boton modo oscuro ── */
+.btn-dark-mode {
+  padding: 6px 10px; background: transparent; border: 1px solid #d1d5db;
+  border-radius: 8px; cursor: pointer; font-size: 16px; line-height: 1;
+  transition: background .15s;
+}
+.btn-dark-mode:hover { background: #f3f4f6; }
+body.dark .btn-dark-mode { border-color: #334155; }
+body.dark .btn-dark-mode:hover { background: #334155; }
+
+/* ── Alertas inasistencias ── */
+.alerta-ausencia {
+  display: flex; align-items: center; gap: 10px;
+  background: #fef3c7; border: 1px solid #fcd34d;
+  border-radius: 8px; padding: 10px 14px; margin-bottom: 6px;
+  font-size: 14px; color: #92400e;
+}
+body.dark .alerta-ausencia { background: #451a03; border-color: #92400e; color: #fcd34d; }
