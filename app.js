@@ -279,6 +279,18 @@ function renderAdminPanel() {
     </div>
   `;
   cargarListaPreceptores();
+
+  // Execute pending backup if we just came back from Drive auth
+  var pendiente = sessionStorage.getItem("driveJustAuthed");
+  if (pendiente === "backup" && gdriveToken) {
+    sessionStorage.removeItem("driveJustAuthed");
+    setTimeout(function() {
+      showTab("tab-backup", document.querySelector(".tab:nth-child(3)"));
+      var btn  = document.querySelector("#tab-backup .btn-primary");
+      var prog = document.getElementById("backup-progress");
+      if (btn && prog) ejecutarBackup(btn, prog);
+    }, 800);
+  }
 }
 
 function cargarListaPreceptores() {

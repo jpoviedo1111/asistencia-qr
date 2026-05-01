@@ -32,6 +32,33 @@ window.addEventListener("DOMContentLoaded", function() {
       sessionStorage.removeItem("precLogin");
     }
   }
+  // Handle Drive OAuth redirect result
+  auth.getRedirectResult().then(function(result) {
+    if (result && result.credential && result.credential.accessToken) {
+      gdriveToken = result.credential.accessToken;
+      var accion = sessionStorage.getItem("driveAction");
+      sessionStorage.removeItem("driveAction");
+      if (accion === "backup") {
+        setTimeout(function() {
+          var btn  = document.querySelector("#tab-backup .btn-primary");
+          var prog = document.getElementById("backup-progress");
+          if (btn && prog) ejecutarBackup(btn, prog);
+          else {
+            // Panel not rendered yet, store flag
+            sessionStorage.setItem("driveJustAuthed", "backup");
+          }
+        }, 1000);
+      } else if (accion === "exportar") {
+        setTimeout(function() {
+          if (window._exportData) subirArchivoDrive(window._exportData);
+          else setDriveMsg("Drive conectado. Selecciona una fecha y presiona Drive.", "success");
+        }, 1000);
+      }
+    }
+  }).catch(function(err) {
+    console.warn("getRedirectResult:", err);
+  });
+
   auth.onAuthStateChanged(function(user) {
     if (!user) { renderLogin(); return; }
     currentUser = user;
