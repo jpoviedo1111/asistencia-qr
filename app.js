@@ -516,7 +516,6 @@ function showTab(id, btn) {
 let alumnosLista = [];
 
 function getCursoId(curso) {
-  // Matches original Firebase key format: "3° 6°" -> "3__6_", "Ed. Fisica 3 6" -> "Ed__Fisica_3_6"
   return (curso || "").replace(/[°\.\s]/g,"_");
 }
 
@@ -885,26 +884,8 @@ function autenticarDrive(accion) {
   provider.addScope(GDRIVE_SCOPE);
   provider.setCustomParameters({ prompt: "consent" });
 
-  auth.signInWithPopup(provider).then(function(result) {
-    sessionStorage.removeItem("driveAction");
-    const token = result.credential.accessToken;
-    if (!token) { setDriveMsg("No se pudo obtener el token de Drive.", "error"); return; }
-    gdriveToken = token;
-    if (accion === "exportar" && window._exportData) {
-      subirArchivoDrive(window._exportData);
-    } else if (accion === "backup") {
-      const btn  = document.querySelector("#tab-backup .btn-primary");
-      const prog = document.getElementById("backup-progress");
-      if (btn && prog) ejecutarBackup(btn, prog);
-    }
-  }).catch(function(err) {
-    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
-      auth.signInWithRedirect(provider);
-    } else {
-      sessionStorage.removeItem("driveAction");
-      setDriveMsg("Error al conectar Drive: " + err.message, "error");
-    }
-  });
+  // Use redirect always - works in all browsers including Edge
+  auth.signInWithRedirect(provider);
 }
 
 async function subirArchivoDrive(d) {
