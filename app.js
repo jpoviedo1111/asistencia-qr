@@ -71,9 +71,7 @@ async function backupTodoADrive() {
   prog.innerHTML = "";
 
   if (!gdriveToken) {
-    // Guardar acción y redirigir a Google OAuth
-    sessionStorage.setItem("driveAction", "backup");
-    autenticarDrive(null);
+    autenticarDrive("backup");
     return;
   }
   await ejecutarBackup(btn, prog);
@@ -279,18 +277,6 @@ function renderAdminPanel() {
     </div>
   `;
   cargarListaPreceptores();
-
-  // Execute pending backup if we just came back from Drive auth
-  var pendiente = sessionStorage.getItem("driveJustAuthed");
-  if (pendiente === "backup" && gdriveToken) {
-    sessionStorage.removeItem("driveJustAuthed");
-    setTimeout(function() {
-      showTab("tab-backup", document.querySelector(".tab:nth-child(3)"));
-      var btn  = document.querySelector("#tab-backup .btn-primary");
-      var prog = document.getElementById("backup-progress");
-      if (btn && prog) ejecutarBackup(btn, prog);
-    }, 800);
-  }
 }
 
 function cargarListaPreceptores() {
@@ -890,15 +876,34 @@ function exportarADrive() {
 
 // ── Autenticar Drive usando Firebase (misma sesión de Google) ──
 function autenticarDrive(accion) {
-  sessionStorage.setItem("driveAction", accion || "exportar");
-
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope(GDRIVE_SCOPE);
   provider.setCustomParameters({ prompt: "consent" });
 
-  // Use redirect always - works in all browsers including Edge
-  auth.signInWithRedirect(provider);
+  auth.signInWithPopup(provider).then(function(result) {
+    const token = result.credential ? result.credential.accessToken : null;
+    if (!token) { 
+      setDriveMsg("No se pudo obtener el token de Drive.", "error"); 
+      return; 
+    }
+    gdriveToken = token;
+    if (accion === "exportar" && window._exportData) {
+      subirArchivoDrive(window._exportData);
+    } else if (accion === "backup") {
+      const btn  = document.querySelector("#tab-backup .btn-primary");
+      const prog = document.getElementById("backup-progress");
+      if (btn && prog) ejecutarBackup(btn, prog);
+    } else if (accion === "exportar") {
+      setDriveMsg("Drive conectado. Selecciona una fecha y presiona Drive.", "success");
+    }
+  }).catch(function(err) {
+    console.error("Drive auth error:", err);
+    setDriveMsg("Error al conectar Drive: " + (err.message || err.code), "error");
+    const btn = document.querySelector("#tab-backup .btn-primary");
+    if (btn) { btn.disabled = false; btn.textContent = "Subir todos los Excel a Drive"; }
+  });
 }
+
 
 async function subirArchivoDrive(d) {
   setDriveMsg("Generando Excel...", "info");
