@@ -220,7 +220,10 @@ function renderAdminPanel() {
           <h1 class="panel-title">Panel Administrador</h1>
           <p class="panel-sub">${IFD} · ${u.displayName} · ${u.email}</p>
         </div>
-        <button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
+          <button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>
+        </div>
       </header>
 
       <div class="tabs">
@@ -401,6 +404,10 @@ function renderPreceptorPanel(fromAdmin = false) {
               onkeydown="if(event.key==='Enter')addAlumno()"/>
             <button class="btn-primary" onclick="addAlumno()">Agregar</button>
           </div>
+          <div class="row-gap" style="margin-top:8px;">
+            <input id="inp-buscar" type="text" class="inp" placeholder="Buscar estudiante..."
+              oninput="filtrarEstudiantes(this.value)" style="background:#f9fafb;"/>
+          </div>
           <div id="alumno-tags" class="tag-list"></div>
           <div class="row-gap" style="margin-top:12px;">
             <button class="btn-outline" onclick="limpiarAlumnos()">Limpiar lista</button>
@@ -434,6 +441,7 @@ function renderPreceptorPanel(fromAdmin = false) {
             <option value="">— Elegí una fecha —</option>
           </select>
         </div>
+        <div id="alertas-inasistencias" style="margin-bottom:8px;"></div>
         <div id="reg-stats" style="display:none;">
           <div class="stats-grid">
             <div class="stat-card"><div class="stat-num" id="s-total">0</div><div class="stat-lbl">Total</div></div>
@@ -486,6 +494,7 @@ function renderPreceptorPanel(fromAdmin = false) {
   loadAlumnos();
   generarQR();
   loadFechas();
+  initDarkMode();
 
   // Si volvimos del redirect de Drive con token, mostrar aviso
   if (gdriveToken && sessionStorage.getItem("driveJustAuthed")) {
@@ -493,6 +502,20 @@ function renderPreceptorPanel(fromAdmin = false) {
     setTimeout(function() {
       setDriveMsg("✓ Google Drive conectado. Seleccioná una fecha y presioná Drive.", "success");
     }, 500);
+  }
+}
+
+function toggleDarkMode() {
+  const body = document.body;
+  const isDark = body.classList.toggle("dark");
+  localStorage.setItem("darkMode", isDark ? "1" : "0");
+  const btn = document.getElementById("btn-dark");
+  if (btn) btn.textContent = isDark ? "☀️" : "🌙";
+}
+
+function initDarkMode() {
+  if (localStorage.getItem("darkMode") === "1") {
+    document.body.classList.add("dark");
   }
 }
 
@@ -551,6 +574,15 @@ function removeAlumno(idx) {
   saveAlumnos();
 }
 
+function filtrarEstudiantes(texto) {
+  const tags = document.querySelectorAll("#alumno-tags .tag");
+  const q = texto.toLowerCase().trim();
+  tags.forEach(tag => {
+    const nombre = tag.textContent.toLowerCase();
+    tag.style.display = !q || nombre.includes(q) ? "" : "none";
+  });
+}
+
 function editarAlumno(idx) {
   const nombre = alumnosLista[idx];
   const nuevo  = prompt("Editar nombre del estudiante:", nombre);
@@ -571,7 +603,11 @@ function renderTags() {
 }
 
 function limpiarAlumnos() {
-  if (!confirm("¿Limpiar toda la lista de estudiantes?")) return;
+  const total = alumnosLista.length;
+  if (total === 0) { alert("La lista ya esta vacia."); return; }
+  if (!confirm("ATENCION: Esta accion eliminara los " + total + " estudiantes del curso " + cursoActivo + " de forma permanente.\n\nEscribi CONFIRMAR para continuar.")) return;
+  const check = prompt("Escribi CONFIRMAR para eliminar la lista:");
+  if (check !== "CONFIRMAR") { alert("Operacion cancelada."); return; }
   alumnosLista = [];
   renderTags();
   db.ref(getCursoPath("alumnos")).remove();
@@ -638,8 +674,58 @@ function cargarRegistro(fechaId) {
         : ausentes.map(a => `<li><span>${a}</span></li>`).join("");
 
       window._exportData = { fecha: fechaId, presentes, ausentes, totalAlumnos: total };
+
+      // Verificar inasistencias consecutivas
+      verificarInasistencias(total);
     });
   });
+}
+
+async function verificarInasistencias(totalAlumnos) {
+  if (!totalAlumnos || totalAlumnos.length === 0) return;
+  const fechasSnap = await db.ref(getCursoPath("fechas")).once("value");
+  const presentesSnap = await db.ref(getCursoPath("presentes")).once("value");
+  const fechas = fechasSnap.val() || {};
+  const presentes = presentesSnap.val() || {};
+  const fechasOrdenadas = Object.keys(fechas).sort();
+  
+  const alertas = [];
+  
+  totalAlumnos.forEach(alumno => {
+    let consecutivas = 0;
+    let maxConsecutivas = 0;
+    for (let i = fechasOrdenadas.length - 1; i >= 0; i--) {
+      const fid = fechasOrdenadas[i];
+      const pd = presentes[fid] ? Object.values(presentes[fid]) : [];
+      const estuvo = pd.some(p => p.nombre === alumno);
+      if (!estuvo) {
+        consecutivas++;
+        maxConsecutivas = Math.max(maxConsecutivas, consecutivas);
+      } else {
+        break;
+      }
+    }
+    if (consecutivas >= 2) {
+      alertas.push({ alumno, consecutivas });
+    }
+  });
+
+  // Mostrar alertas
+  const contenedor = document.getElementById("alertas-inasistencias");
+  if (!contenedor) return;
+  
+  if (alertas.length === 0) {
+    contenedor.innerHTML = "";
+    return;
+  }
+
+  contenedor.innerHTML = alertas.map(a =>
+    '<div class="alerta-ausencia">' +
+    '<span style="font-size:16px;">⚠️</span>' +
+    '<div><strong>' + a.alumno + '</strong><br>' +
+    '<span style="font-size:12px;">' + a.consecutivas + ' inasistencias consecutivas</span></div>' +
+    '</div>'
+  ).join("");
 }
 
 // ── Marcar manual ─────────────────────────────────────────

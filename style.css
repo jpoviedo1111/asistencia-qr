@@ -115,3 +115,47 @@ textarea.inp { resize: vertical; }
   .stat-num { font-size: 22px; }
   .panel-wrap { padding: 1rem .75rem 3rem; }
 }
+
+/* ── Modo oscuro ── */
+.dark { background: #0f172a; color: #e2e8f0; }
+.dark .card { background: #1e293b; border-color: #334155; }
+.dark .login-card { background: #1e293b; border-color: #334155; }
+.dark .inp { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+.dark .form-select { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+.dark .btn-outline { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+.dark .btn-outline:hover { background: #334155; }
+.dark .tabs { border-color: #334155; }
+.dark .tab { color: #94a3b8; }
+.dark .tab.active { color: #e2e8f0; border-bottom-color: #e2e8f0; }
+.dark .tag { background: #334155; border-color: #475569; color: #e2e8f0; }
+.dark .panel-title { color: #e2e8f0; }
+.dark .panel-sub { color: #94a3b8; }
+.dark .card-title { color: #e2e8f0; }
+.dark .stat-card { background: #1e293b; border-color: #334155; }
+.dark .stat-num { color: #e2e8f0; }
+.dark .present-list li { border-color: #334155; }
+.dark .badge-hora { background: #334155; color: #cbd5e1; }
+.dark .prec-row { border-color: #334155; }
+.dark .empty-hint { color: #64748b; }
+.dark .form-label { color: #cbd5e1; }
+.dark .login-title { color: #e2e8f0; }
+.dark .phone-body { background: #1e293b; border-color: #334155; }
+.dark body { background: #0f172a; }
+
+/* Boton modo oscuro */
+.btn-dark-mode { 
+  padding: 6px 12px; background: transparent; border: 1px solid #d1d5db; 
+  border-radius: 8px; cursor: pointer; font-size: 18px; line-height: 1;
+  transition: background .15s;
+}
+.btn-dark-mode:hover { background: #f3f4f6; }
+.dark .btn-dark-mode { border-color: #334155; }
+.dark .btn-dark-mode:hover { background: #334155; }
+
+/* ── Alertas inasistencias ── */
+.alerta-ausencia {
+  display: flex; align-items: center; gap: 10px;
+  background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 6px; font-size: 14px; color: #92400e;
+}
+.dark .alerta-ausencia { background: #451a03; border-color: #92400e; color: #fcd34d; }
