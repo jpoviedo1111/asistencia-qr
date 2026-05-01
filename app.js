@@ -442,9 +442,25 @@ function renderPreceptorPanel(fromAdmin = false) {
             <h2 class="card-title" style="margin:0;">Seleccioná una fecha</h2>
             <button class="btn-outline sm" onclick="mostrarNuevaFecha()">+ Nueva fecha</button>
           </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <select id="sel-mes" class="form-select" onchange="cargarFechasPorMes(this.value)" style="flex:1;">
+              <option value="">— Elegí un mes —</option>
+              <option value="2">Febrero</option>
+              <option value="3">Marzo</option>
+              <option value="4">Abril</option>
+              <option value="5">Mayo</option>
+              <option value="6">Junio</option>
+              <option value="7">Julio</option>
+              <option value="8">Agosto</option>
+              <option value="9">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+          </div>
           <div style="display:flex;gap:8px;align-items:center;">
-            <select id="sel-fecha" class="form-select" onchange="cargarRegistro(this.value)" style="flex:1;">
-              <option value="">— Elegí una fecha —</option>
+            <select id="sel-fecha" class="form-select" onchange="cargarRegistro(this.value)" style="flex:1;" disabled>
+              <option value="">— Primero elegí un mes —</option>
             </select>
             <button class="btn-outline sm" onclick="editarFechaActual()" id="btn-editar-fecha" style="display:none;white-space:nowrap;">✎ Editar</button>
           </div>
@@ -810,7 +826,10 @@ async function crearFechaManual() {
   msg.innerHTML = '<span style="color:#15803d;">✓ Fecha creada correctamente.</span>';
 
   // Refresh fecha selector and select new date
-  await loadFechas();
+  const mesNum = parseInt(fechaId.split("-")[1]);
+  const selMes = document.getElementById("sel-mes");
+  if (selMes) selMes.value = mesNum;
+  await cargarFechasPorMes(mesNum);
   document.getElementById("sel-fecha").value = fechaId;
   cargarRegistro(fechaId);
 
@@ -818,13 +837,43 @@ async function crearFechaManual() {
 }
 
 function loadFechas() {
+  // Auto-select current month
+  const mesActual = new Date().getMonth() + 1;
+  const selMes = document.getElementById("sel-mes");
+  if (selMes && !selMes.value) {
+    selMes.value = mesActual >= 2 ? mesActual : 2;
+    cargarFechasPorMes(selMes.value);
+  }
+}
+
+function cargarFechasPorMes(mes) {
+  const sel = document.getElementById("sel-fecha");
+  if (!sel) return;
+  if (!mes) {
+    sel.innerHTML = '<option value="">— Primero elegí un mes —</option>';
+    sel.disabled = true;
+    return;
+  }
   db.ref(getCursoPath("fechas")).once("value", snap => {
-    const sel    = document.getElementById("sel-fecha");
-    if (!sel) return;
     const fechas = snap.val() || {};
-    const keys   = Object.keys(fechas).sort().reverse();
-    sel.innerHTML = `<option value="">— Elegí una fecha —</option>` +
-      keys.map(k => `<option value="${k}">${formatearFecha(k)}</option>`).join("");
+    const keys = Object.keys(fechas)
+      .filter(k => {
+        const m = parseInt(k.split("-")[1]);
+        return m === parseInt(mes);
+      })
+      .sort().reverse();
+    if (keys.length === 0) {
+      sel.innerHTML = '<option value="">— Sin fechas en este mes —</option>';
+      sel.disabled = true;
+    } else {
+      sel.innerHTML = '<option value="">— Elegí una fecha —</option>' +
+        keys.map(k => '<option value="' + k + '">' + formatearFecha(k) + '</option>').join("");
+      sel.disabled = false;
+    }
+    // Auto-select if only one date or reset
+    document.getElementById("reg-stats").style.display = "none";
+    const btnEditar = document.getElementById("btn-editar-fecha");
+    if (btnEditar) btnEditar.style.display = "none";
   });
 }
 
