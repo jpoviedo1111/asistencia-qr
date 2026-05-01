@@ -220,10 +220,7 @@ function renderAdminPanel() {
           <h1 class="panel-title">Panel Administrador</h1>
           <p class="panel-sub">${IFD} · ${u.displayName} · ${u.email}</p>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
-          <button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>
-        </div>
+        <button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>
       </header>
 
       <div class="tabs">
@@ -383,6 +380,7 @@ function renderPreceptorPanel(fromAdmin = false) {
             <select id="curso-sel" class="form-select" style="width:auto;" onchange="cambiarCurso(this.value)">
               ${cursos.map(c => `<option value="${c}" ${c===cursoActivo?"selected":""}>${c}</option>`).join("")}
             </select>` : `<span style="font-weight:500;font-size:14px;">${cursoActivo}</span>`}
+          <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
           ${fromAdmin
             ? `<button class="btn-outline sm" onclick="renderAdminPanel()">← Admin</button>`
             : `<button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>`}
@@ -516,6 +514,8 @@ function toggleDarkMode() {
 function initDarkMode() {
   if (localStorage.getItem("darkMode") === "1") {
     document.body.classList.add("dark");
+    const btn = document.getElementById("btn-dark");
+    if (btn) btn.textContent = "☀️";
   }
 }
 
@@ -605,7 +605,7 @@ function renderTags() {
 function limpiarAlumnos() {
   const total = alumnosLista.length;
   if (total === 0) { alert("La lista ya esta vacia."); return; }
-  if (!confirm("ATENCION: Esta accion eliminara los " + total + " estudiantes del curso " + cursoActivo + " de forma permanente.\n\nEscribi CONFIRMAR para continuar.")) return;
+  if (!confirm("ATENCION: Esta accion eliminara los " + total + " estudiantes del curso " + cursoActivo + " de forma permanente.\n\n¿Confirmas?")) return;
   const check = prompt("Escribi CONFIRMAR para eliminar la lista:");
   if (check !== "CONFIRMAR") { alert("Operacion cancelada."); return; }
   alumnosLista = [];
@@ -674,8 +674,6 @@ function cargarRegistro(fechaId) {
         : ausentes.map(a => `<li><span>${a}</span></li>`).join("");
 
       window._exportData = { fecha: fechaId, presentes, ausentes, totalAlumnos: total };
-
-      // Verificar inasistencias consecutivas
       verificarInasistencias(total);
     });
   });
@@ -688,43 +686,25 @@ async function verificarInasistencias(totalAlumnos) {
   const fechas = fechasSnap.val() || {};
   const presentes = presentesSnap.val() || {};
   const fechasOrdenadas = Object.keys(fechas).sort();
-  
   const alertas = [];
-  
   totalAlumnos.forEach(alumno => {
     let consecutivas = 0;
-    let maxConsecutivas = 0;
     for (let i = fechasOrdenadas.length - 1; i >= 0; i--) {
       const fid = fechasOrdenadas[i];
       const pd = presentes[fid] ? Object.values(presentes[fid]) : [];
       const estuvo = pd.some(p => p.nombre === alumno);
-      if (!estuvo) {
-        consecutivas++;
-        maxConsecutivas = Math.max(maxConsecutivas, consecutivas);
-      } else {
-        break;
-      }
+      if (!estuvo) consecutivas++;
+      else break;
     }
-    if (consecutivas >= 2) {
-      alertas.push({ alumno, consecutivas });
-    }
+    if (consecutivas >= 2) alertas.push({ alumno, consecutivas });
   });
-
-  // Mostrar alertas
   const contenedor = document.getElementById("alertas-inasistencias");
   if (!contenedor) return;
-  
-  if (alertas.length === 0) {
-    contenedor.innerHTML = "";
-    return;
-  }
-
+  if (alertas.length === 0) { contenedor.innerHTML = ""; return; }
   contenedor.innerHTML = alertas.map(a =>
-    '<div class="alerta-ausencia">' +
-    '<span style="font-size:16px;">⚠️</span>' +
+    '<div class="alerta-ausencia"><span style="font-size:16px;">⚠️</span>' +
     '<div><strong>' + a.alumno + '</strong><br>' +
-    '<span style="font-size:12px;">' + a.consecutivas + ' inasistencias consecutivas</span></div>' +
-    '</div>'
+    '<span style="font-size:12px;">' + a.consecutivas + ' inasistencias consecutivas</span></div></div>'
   ).join("");
 }
 
