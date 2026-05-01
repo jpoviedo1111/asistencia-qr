@@ -220,7 +220,10 @@ function renderAdminPanel() {
           <h1 class="panel-title">Panel Administrador</h1>
           <p class="panel-sub">${IFD} · ${u.displayName} · ${u.email}</p>
         </div>
-        <button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
+          <button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>
+        </div>
       </header>
 
       <div class="tabs">
@@ -277,6 +280,7 @@ function renderAdminPanel() {
     </div>
   `;
   cargarListaPreceptores();
+  initDarkMode();
 }
 
 function cargarListaPreceptores() {
