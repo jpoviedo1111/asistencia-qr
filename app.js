@@ -2086,21 +2086,15 @@ function guardarJustificacionFalta(cursoId, alumno) {
   const fechaKey = fechaHasta || fechaDesde;
   const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fechaKey);
   
-  // Si hay archivo, convertir a Base64 y guardar en sessionStorage/localStorage
+  // Si hay archivo, convertir a Base64
   if (archivo) {
     const reader = new FileReader();
     reader.onload = function(e) {
       const base64 = e.target.result;
       
-      // Guardar Base64 en localStorage (local del navegador)
-      const archivoKey = `archivo_${cid}_${alumnoId}_${fechaKey}`;
-      try {
-        localStorage.setItem(archivoKey, base64);
-      } catch (err) {
-        console.warn("No se pudo guardar en localStorage:", err);
-      }
+      // Guardar en window (accesible globalmente)
+      window[`archivo_${fechaKey}`] = base64;
       
-      // Guardar metadata en Firebase (sin Base64)
       const justificacion = {
         fechaDesde: fechaDesde,
         fechaHasta: fechaHasta || null,
@@ -2109,8 +2103,8 @@ function guardarJustificacionFalta(cursoId, alumno) {
         tieneArchivo: true,
         nombreArchivo: archivo.name,
         tipoArchivo: archivo.type,
-        tamanioArchivo: archivo.size
-        // archivoBase64 NO se guarda en Firebase por ser muy grande
+        tamanioArchivo: archivo.size,
+        archivoBase64: base64
       };
       
       db.ref(path).set(justificacion).then(() => {
@@ -2162,21 +2156,20 @@ function guardarJustificacionFalta(cursoId, alumno) {
 
 // ── DESCARGAR/VER ARCHIVO ──────────────────────────────────────────
 function descargarArchivo(nombreArchivo, archivoKey) {
-  console.log("Descargando archivo:", nombreArchivo);
+  console.log("Descargando archivo:", nombreArchivo, "clave:", archivoKey);
   
   try {
-    // Intentar obtener del localStorage primero
-    let base64 = localStorage.getItem(archivoKey);
+    // Intentar obtener del window global primero
+    let base64 = window[archivoKey];
     
     if (!base64 || base64 === 'undefined' || base64.length === 0) {
-      alert("⚠️ El archivo no está disponible localmente.\n\nNota: Los archivos se guardan en tu navegador. Si borraste el caché, se perderán.");
+      alert("⚠️ El archivo no está disponible actualmente.\n\nInténtalo de nuevo o recarga la página.");
       return;
     }
     
     // Si no comienza con data:, agregarlo
     let dataUrl = base64;
     if (!base64.startsWith('data:')) {
-      // Intentar detectar el tipo
       const ext = nombreArchivo.split('.').pop().toLowerCase();
       let mimeType = 'application/octet-stream';
       if (ext === 'pdf') mimeType = 'application/pdf';
@@ -2194,12 +2187,11 @@ function descargarArchivo(nombreArchivo, archivoKey) {
     document.body.appendChild(link);
     link.click();
     
-    // Limpiar
     setTimeout(() => {
       document.body.removeChild(link);
     }, 100);
     
-    console.log("Archivo descargado exitosamente");
+    console.log("✅ Archivo descargado exitosamente");
   } catch (err) {
     console.error("Error al descargar:", err);
     alert("❌ Error al descargar: " + err.message);
@@ -2258,9 +2250,13 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
       const icono = datos.tieneArchivo ? '📎' : '📅';
       
       let botonArchivo = '';
-      if (datos.tieneArchivo && datos.nombreArchivo) {
+      if (datos.tieneArchivo && datos.nombreArchivo && datos.archivoBase64) {
         const nombreSafe = datos.nombreArchivo.replace(/'/g, "\\'");
-        const archivoKey = `archivo_${cid}_${alumnoId}_${fecha}`;
+        const archivoKey = `archivo_${fecha}`;
+        
+        // Guardar en window para acceso
+        window[archivoKey] = datos.archivoBase64;
+        
         botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${archivoKey}')" style="
           background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           color: white;
