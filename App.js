@@ -3,7 +3,6 @@
 // ══════════════════════════════════════════════════════════
 
 // ⚡ DEFINICIONES GLOBALES TEMPRANAS - Evitar scope issues
-// Estas se llenarán cuando se definan las funciones
 if (typeof window !== 'undefined') {
   window.renderAdminPanel = null;
   window.volverAlAdmin = null;
@@ -232,14 +231,11 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
 }
 
 // ── VOLVER AL ADMIN PANEL ───────────────────────────────────
-// ── VOLVER AL ADMIN PANEL ───────────────────────────────────
 function volverAlAdmin() {
-  // Verificar que renderAdminPanel esté definida y disponible
   if (typeof renderAdminPanel === 'function') {
     renderAdminPanel();
   } else {
-    console.error("❌ renderAdminPanel no está disponible");
-    // Fallback: volver al panel anterior
+    console.error("❌ renderAdminPanel no disponible - recargando...");
     location.reload();
   }
 }
@@ -316,7 +312,7 @@ function renderAdminPanel() {
   initDarkMode();
 }
 
-// Registrar en window para asegurar disponibilidad global
+// ⚡ REGISTRAR EN WINDOW PARA DISPONIBILIDAD GLOBAL
 window.renderAdminPanel = renderAdminPanel;
 window.volverAlAdmin = volverAlAdmin;
 
