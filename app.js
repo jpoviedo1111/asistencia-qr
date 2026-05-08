@@ -2086,40 +2086,91 @@ function guardarJustificacionFalta(cursoId, alumno) {
   
   const cid = cursoId.replace(/[°\s]/g, "_");
   const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
-  const fechaKey = fechaHasta || fechaDesde; // Usa fecha hasta si existe, sino desde
+  const fechaKey = fechaHasta || fechaDesde;
   const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fechaKey);
   
-  const justificacion = {
-    fechaDesde: fechaDesde,
-    fechaHasta: fechaHasta || null,
-    motivo: motivo,
-    guardado: new Date().toISOString(),
-    tieneArchivo: !!archivo
-  };
-  
-  // Guardar en Firebase
-  db.ref(path).set(justificacion).then(() => {
-    // Si hay archivo, también guardarlo (en versiones futuras con Storage)
-    if (archivo) {
-      console.log("Archivo seleccionado:", archivo.name, "Tamaño:", (archivo.size / 1024).toFixed(2) + "KB");
-      alert("✅ Justificación guardada correctamente\n📎 Archivo: " + archivo.name);
-    } else {
+  // Si hay archivo, convertir a Base64
+  if (archivo) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result;
+      const justificacion = {
+        fechaDesde: fechaDesde,
+        fechaHasta: fechaHasta || null,
+        motivo: motivo,
+        guardado: new Date().toISOString(),
+        tieneArchivo: true,
+        nombreArchivo: archivo.name,
+        tipoArchivo: archivo.type,
+        tamanioArchivo: archivo.size,
+        archivoBase64: base64
+      };
+      
+      db.ref(path).set(justificacion).then(() => {
+        alert("✅ Justificación guardada correctamente\n📎 Archivo: " + archivo.name);
+        
+        // Limpiar campos
+        document.getElementById("fecha-falta-desde").value = "";
+        document.getElementById("fecha-falta-hasta").value = "";
+        document.getElementById("motivo-falta").value = "";
+        document.getElementById("archivo-certificado").value = "";
+        document.getElementById("nombre-archivo").style.display = "none";
+        document.getElementById("nombre-archivo").textContent = "";
+        
+        // Recargar lista
+        cargarFaltasJustificadas(cid, alumno);
+      }).catch(err => {
+        alert("❌ Error al guardar: " + err.message);
+      });
+    };
+    reader.readAsDataURL(archivo);
+  } else {
+    // Sin archivo
+    const justificacion = {
+      fechaDesde: fechaDesde,
+      fechaHasta: fechaHasta || null,
+      motivo: motivo,
+      guardado: new Date().toISOString(),
+      tieneArchivo: false
+    };
+    
+    db.ref(path).set(justificacion).then(() => {
       alert("✅ Justificación guardada correctamente");
-    }
-    
-    // Limpiar campos
-    document.getElementById("fecha-falta-desde").value = "";
-    document.getElementById("fecha-falta-hasta").value = "";
-    document.getElementById("motivo-falta").value = "";
-    document.getElementById("archivo-certificado").value = "";
-    document.getElementById("nombre-archivo").style.display = "none";
-    document.getElementById("nombre-archivo").textContent = "";
-    
-    // Recargar lista de faltas
-    cargarFaltasJustificadas(cid, alumno);
-  }).catch(err => {
-    alert("❌ Error al guardar: " + err.message);
-  });
+      
+      // Limpiar campos
+      document.getElementById("fecha-falta-desde").value = "";
+      document.getElementById("fecha-falta-hasta").value = "";
+      document.getElementById("motivo-falta").value = "";
+      document.getElementById("archivo-certificado").value = "";
+      document.getElementById("nombre-archivo").style.display = "none";
+      document.getElementById("nombre-archivo").textContent = "";
+      
+      // Recargar lista
+      cargarFaltasJustificadas(cid, alumno);
+    }).catch(err => {
+      alert("❌ Error al guardar: " + err.message);
+    });
+  }
+}
+
+// ── DESCARGAR/VER ARCHIVO ──────────────────────────────────────────
+function descargarArchivo(nombreArchivo, base64) {
+  if (!base64 || base64 === 'undefined') {
+    alert("❌ El archivo no está disponible");
+    return;
+  }
+  
+  try {
+    // Crear elemento link para descargar
+    const link = document.createElement('a');
+    link.href = base64;
+    link.download = nombreArchivo;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    alert("❌ Error al descargar: " + err.message);
+  }
 }
 
 // ── MOSTRAR NOMBRE DE ARCHIVO ───────────────────────────────────────
@@ -2172,6 +2223,21 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
       const fechaDesde = datos.fechaDesde || fecha;
       const fechaHasta = datos.fechaHasta ? ` - ${datos.fechaHasta}` : '';
       const icono = datos.tieneArchivo ? '📎' : '📅';
+      const botonArchivo = datos.tieneArchivo ? `<button onclick="event.stopPropagation(); descargarArchivo('${datos.nombreArchivo}', '${datos.archivoBase64}')" style="
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 4px 8px;
+        font-size: 10px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 1px 4px rgba(16, 185, 129, 0.3);
+        margin-right: 4px;
+      " onmouseover="this.style.boxShadow='0 2px 8px rgba(16, 185, 129, 0.5)'; this.style.transform='scale(1.05)';" onmouseout="this.style.boxShadow='0 1px 4px rgba(16, 185, 129, 0.3)'; this.style.transform='scale(1)';">
+        📥 Ver/Descargar
+      </button>` : '';
       
       html += `
         <div style="border-bottom: 1px solid #64748b; padding: 10px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a';" onmouseout="this.style.background='transparent';">
@@ -2197,7 +2263,7 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
           </div>
           <div style="display: none; padding: 8px 0; border-top: 1px solid #64748b; color: #e2e8f0; font-size: 11px; line-height: 1.4;">
             <div style="margin-bottom: 6px;"><strong>Motivo:</strong> ${datos.motivo}</div>
-            ${datos.tieneArchivo ? '<div style="color: #10b981;">📎 Certificado adjuntado</div>' : ''}
+            ${datos.tieneArchivo ? '<div style="margin-bottom: 6px; padding: 6px; background: rgba(16, 185, 129, 0.1); border-radius: 4px;">' + botonArchivo + '<span style="color: #10b981;">📎 ' + datos.nombreArchivo + '</span></div>' : ''}
           </div>
         </div>
       `;
