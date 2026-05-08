@@ -2086,11 +2086,21 @@ function guardarJustificacionFalta(cursoId, alumno) {
   const fechaKey = fechaHasta || fechaDesde;
   const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fechaKey);
   
-  // Si hay archivo, convertir a Base64
+  // Si hay archivo, convertir a Base64 y guardar en sessionStorage/localStorage
   if (archivo) {
     const reader = new FileReader();
     reader.onload = function(e) {
       const base64 = e.target.result;
+      
+      // Guardar Base64 en localStorage (local del navegador)
+      const archivoKey = `archivo_${cid}_${alumnoId}_${fechaKey}`;
+      try {
+        localStorage.setItem(archivoKey, base64);
+      } catch (err) {
+        console.warn("No se pudo guardar en localStorage:", err);
+      }
+      
+      // Guardar metadata en Firebase (sin Base64)
       const justificacion = {
         fechaDesde: fechaDesde,
         fechaHasta: fechaHasta || null,
@@ -2099,8 +2109,8 @@ function guardarJustificacionFalta(cursoId, alumno) {
         tieneArchivo: true,
         nombreArchivo: archivo.name,
         tipoArchivo: archivo.type,
-        tamanioArchivo: archivo.size,
-        archivoBase64: base64
+        tamanioArchivo: archivo.size
+        // archivoBase64 NO se guarda en Firebase por ser muy grande
       };
       
       db.ref(path).set(justificacion).then(() => {
@@ -2149,17 +2159,36 @@ function guardarJustificacionFalta(cursoId, alumno) {
     });
   }
 }
+      
+      // Limpiar campos
+      document.getElementById("fecha-falta-desde").value = "";
+      document.getElementById("fecha-falta-hasta").value = "";
+      document.getElementById("motivo-falta").value = "";
+      document.getElementById("archivo-certificado").value = "";
+      document.getElementById("nombre-archivo").style.display = "none";
+      document.getElementById("nombre-archivo").textContent = "";
+      
+      // Recargar lista
+      cargarFaltasJustificadas(cid, alumno);
+    }).catch(err => {
+      alert("❌ Error al guardar: " + err.message);
+    });
+  }
+}
 
 // ── DESCARGAR/VER ARCHIVO ──────────────────────────────────────────
-function descargarArchivo(nombreArchivo, base64) {
+function descargarArchivo(nombreArchivo, archivoKey) {
   console.log("Descargando archivo:", nombreArchivo);
   
-  if (!base64 || base64 === 'undefined' || base64.length === 0) {
-    alert("❌ El archivo no está disponible o está vacío");
-    return;
-  }
-  
   try {
+    // Intentar obtener del localStorage primero
+    let base64 = localStorage.getItem(archivoKey);
+    
+    if (!base64 || base64 === 'undefined' || base64.length === 0) {
+      alert("⚠️ El archivo no está disponible localmente.\n\nNota: Los archivos se guardan en tu navegador. Si borraste el caché, se perderán.");
+      return;
+    }
+    
     // Si no comienza con data:, agregarlo
     let dataUrl = base64;
     if (!base64.startsWith('data:')) {
@@ -2170,7 +2199,7 @@ function descargarArchivo(nombreArchivo, base64) {
       else if (ext === 'png') mimeType = 'image/png';
       else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
       
-      dataUrl = `data:${mimeType};base64,${base64}`;
+      dataUrl = `data:${mimeType};base64,${base64.split(',')[1] || base64}`;
     }
     
     // Crear elemento link para descargar
@@ -2245,10 +2274,10 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
       const icono = datos.tieneArchivo ? '📎' : '📅';
       
       let botonArchivo = '';
-      if (datos.tieneArchivo && datos.archivoBase64) {
+      if (datos.tieneArchivo && datos.nombreArchivo) {
         const nombreSafe = datos.nombreArchivo.replace(/'/g, "\\'");
-        const base64Safe = datos.archivoBase64;
-        botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${base64Safe}')" style="
+        const archivoKey = `archivo_${cid}_${alumnoId}_${fecha}`;
+        botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${archivoKey}')" style="
           background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           color: white;
           border: none;
