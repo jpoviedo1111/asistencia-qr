@@ -452,7 +452,7 @@ function renderPreceptorPanel(fromAdmin = false) {
           </div>
           <div class="row-gap" style="margin-top:8px;">
             <input id="inp-buscar" type="text" class="inp" placeholder="Buscar estudiante..."
-              oninput="filtrarEstudiantes(this.value)" style="background:#f9fafb;"/>
+              oninput="filtrarTarjetasEstudiantes(this.value)" style="background:#f9fafb;"/>
           </div>
           <div id="alumno-tags" class="tag-list"></div>
           <div class="row-gap" style="margin-top:12px;">
