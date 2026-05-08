@@ -2136,12 +2136,28 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
     let html = '';
     for (const [fecha, datos] of Object.entries(justificaciones)) {
       html += `
-        <div style="border-bottom: 1px solid #64748b; padding: 10px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#0f172a';" onmouseout="this.style.background='transparent';" onclick="toggleMotivo(this)">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="border-bottom: 1px solid #64748b; padding: 10px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a';" onmouseout="this.style.background='transparent';">
+          <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px;" onclick="toggleMotivo(this)">
             <span style="color: #93c5fd; font-weight: 500; font-size: 12px;">📅 ${fecha}</span>
-            <span style="color: #64748b; font-size: 10px;">▶</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="color: #64748b; font-size: 10px; transition: transform 0.2s;">▶</span>
+              <button onclick="event.stopPropagation(); eliminarJustificacion('${cid}', '${alumno}', '${fecha}')" style="
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 10px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+                box-shadow: 0 1px 4px rgba(239, 68, 68, 0.3);
+              " onmouseover="this.style.boxShadow='0 2px 8px rgba(239, 68, 68, 0.5)'; this.style.transform='scale(1.05)';" onmouseout="this.style.boxShadow='0 1px 4px rgba(239, 68, 68, 0.3)'; this.style.transform='scale(1)';">
+                🗑️ Eliminar
+              </button>
+            </div>
           </div>
-          <div style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #64748b; color: #e2e8f0; font-size: 11px; line-height: 1.4;">
+          <div style="display: none; padding: 8px 0; border-top: 1px solid #64748b; color: #e2e8f0; font-size: 11px; line-height: 1.4;">
             ${datos.motivo}
           </div>
         </div>
@@ -2157,11 +2173,30 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
 // ── TOGGLE MOTIVO (mostrar/ocultar) ────────────────────────────────
 function toggleMotivo(element) {
   const motivo = element.querySelector('[style*="display: none"]') || element.querySelector('div:last-child');
-  if (motivo.style.display === "none" || !motivo.style.display) {
+  const flecha = element.querySelector('span:first-child');
+  
+  if (motivo && (motivo.style.display === "none" || !motivo.style.display)) {
     motivo.style.display = "block";
-    element.querySelector('span:last-child').style.transform = "rotate(90deg)";
+    if (flecha) flecha.style.transform = "rotate(90deg)";
   } else {
-    motivo.style.display = "none";
-    element.querySelector('span:last-child').style.transform = "rotate(0deg)";
+    if (motivo) motivo.style.display = "none";
+    if (flecha) flecha.style.transform = "rotate(0deg)";
   }
+}
+
+// ── ELIMINAR JUSTIFICACIÓN ──────────────────────────────────────────
+function eliminarJustificacion(cursoId, alumno, fecha) {
+  if (!confirm(`¿Estás seguro de que deseas eliminar la justificación del ${fecha}?`)) {
+    return;
+  }
+  
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cursoId, "estudiantes", alumnoId, "justificaciones", fecha);
+  
+  db.ref(path).remove().then(() => {
+    alert("✅ Justificación eliminada correctamente");
+    cargarFaltasJustificadas(cursoId.replace(/_/g, "° "), alumno);
+  }).catch(err => {
+    alert("❌ Error al eliminar: " + err.message);
+  });
 }
