@@ -1848,18 +1848,18 @@ async function renderPerfilEstudiante(alumno, cursoId) {
         <button class="btn-outline" onclick="volverAEstudiantes()" style="white-space: nowrap;">Volver</button>
       </div>
       
-      <div class="stats-grid" style="margin-bottom: 20px;">
-        <div class="stat-card ${estadoAsistencia.porcentaje >= 80 ? 'green' : 'red'}" style="background: var(--color-background-secondary); border: 1.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px; text-align: center;">
-          <div class="stat-num" style="font-size: 24px; font-weight: 700; color: ${estadoAsistencia.porcentaje >= 80 ? 'var(--color-text-success)' : 'var(--color-text-danger)'};">${estadoAsistencia.porcentaje}%</div>
-          <div class="stat-lbl" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Asistencia</div>
+      <div class="stats-grid" style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+        <div style="background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); border: 2px solid #1e40af; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+          <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 4px;">${estadoAsistencia.porcentaje}%</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.9); font-weight: 500;">Asistencia</div>
         </div>
-        <div class="stat-card" style="background: var(--color-background-secondary); border: 1.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px; text-align: center;">
-          <div class="stat-num" style="font-size: 24px; font-weight: 700; color: var(--color-text-primary);">${estadoAsistencia.totalPresentes}</div>
-          <div class="stat-lbl" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Presentes</div>
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: 2px solid #059669; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+          <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 4px;">${estadoAsistencia.totalPresentes}</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.9); font-weight: 500;">Presentes</div>
         </div>
-        <div class="stat-card red" style="background: var(--color-background-secondary); border: 1.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px; text-align: center;">
-          <div class="stat-num" style="font-size: 24px; font-weight: 700; color: var(--color-text-danger);">${estadoAsistencia.totalDias - estadoAsistencia.totalPresentes}</div>
-          <div class="stat-lbl" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Ausentes</div>
+        <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: 2px solid #dc2626; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
+          <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 4px;">${estadoAsistencia.totalDias - estadoAsistencia.totalPresentes}</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.9); font-weight: 500;">Ausentes</div>
         </div>
       </div>
       
