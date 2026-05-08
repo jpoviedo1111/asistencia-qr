@@ -401,6 +401,7 @@ async function renderPreceptorPanel(fromAdmin = false) {
 
       <div class="tabs">
         <button class="tab active" onclick="showTab('tab-alumnos', this)">Estudiantes</button>
+        <button class="tab" onclick="showTab('tab-agregar-alumnos', this)">Agregar Estudiantes</button>
         <button class="tab" onclick="showTab('tab-qr', this)">Código QR</button>
         <button class="tab" onclick="showTab('tab-registro', this)">Registro</button>
       </div>
@@ -408,6 +409,26 @@ async function renderPreceptorPanel(fromAdmin = false) {
       <!-- Alumnos -->
       <div id="tab-alumnos" class="tab-content active">
         ${await renderEstudiantesGrid(cursoActivo)}
+      </div>
+
+      <!-- Agregar Alumnos -->
+      <div id="tab-agregar-alumnos" class="tab-content">
+        <div class="card">
+          <h2 class="card-title">Agregar estudiantes — ${cursoActivo}</h2>
+          <div class="row-gap">
+            <input id="inp-alumno" type="text" class="inp" placeholder="Apellido y nombre"
+              onkeydown="if(event.key==='Enter')addAlumno()"/>
+            <button class="btn-primary" onclick="addAlumno()">Agregar</button>
+          </div>
+          <div class="row-gap" style="margin-top:8px;">
+            <input id="inp-buscar" type="text" class="inp" placeholder="Buscar estudiante..."
+              oninput="filtrarEstudiantes(this.value)" style="background:#f9fafb;"/>
+          </div>
+          <div id="alumno-tags" class="tag-list"></div>
+          <div class="row-gap" style="margin-top:12px;">
+            <button class="btn-outline" onclick="limpiarAlumnos()">Limpiar lista</button>
+          </div>
+        </div>
       </div>
 
       <!-- QR -->
@@ -1604,7 +1625,7 @@ async function renderEstudiantesGrid(cursoId) {
   
   const alumnosSnap = await db.ref(path).once("value");
   const alumnosObj = alumnosSnap.val() || {};
-  const alumnos = Object.values(alumnosObj);
+  const alumnos = Object.values(alumnosObj).sort((a, b) => a.localeCompare(b, 'es-AR'));
   
   let html = `
     <div style="margin-bottom: 1.5rem;">
@@ -1628,12 +1649,13 @@ async function renderEstudiantesGrid(cursoId) {
     html += `
       <div class="estudiante-card" data-nombre="${alumno.toLowerCase()}" onclick="irAlPerfilEstudiante('${alumno}', '${cid}')" style="
         background: var(--color-background-primary);
-        border: 0.5px solid var(--color-border-tertiary);
+        border: 1.5px solid var(--color-border-secondary);
         border-radius: var(--border-radius-lg);
         padding: 12px;
         cursor: pointer;
-        transition: all 0.15s;
-      " onmouseover="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)';" onmouseout="this.style.borderColor='var(--color-border-tertiary)'; this.style.boxShadow='none';">
+        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      " onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.transform='translateY(0)';">
         
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
           <div style="width: 40px; height: 40px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: white; flex-shrink: 0;">${iniciales}</div>
@@ -1642,7 +1664,7 @@ async function renderEstudiantesGrid(cursoId) {
           </div>
         </div>
         
-        <div style="padding: 8px 0; border-top: 0.5px solid var(--color-border-tertiary); font-size: 12px;">
+        <div style="padding: 8px 0; border-top: 1.5px solid var(--color-border-secondary); font-size: 12px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
             <span style="color: var(--color-text-secondary);">Asistencia</span>
             <span style="color: ${estadoAsistencia.color}; font-weight: 500;">${estadoAsistencia.porcentaje}%</span>
@@ -1721,6 +1743,15 @@ function irAlPerfilEstudiante(alumno, cursoId) {
   renderPerfilEstudiante(alumno, cursoId);
 }
 
+// ── CUATRIMESTRES Y PERÍODOS ESPECIALES ──────────────────────────────
+const PERIODOS = {
+  "1er_cuatrimestre": { nombre: "1er Cuatrimestre", icono: "📚" },
+  "2do_cuatrimestre": { nombre: "2do Cuatrimestre", icono: "📚" },
+  "3er_cuatrimestre": { nombre: "3er Cuatrimestre", icono: "📚" },
+  "diciembre": { nombre: "Diciembre", icono: "🎄" },
+  "febrero": { nombre: "Febrero", icono: "☀️" }
+};
+
 // ── RENDERIZAR PERFIL DEL ESTUDIANTE ─────────────────────────────────
 async function renderPerfilEstudiante(alumno, cursoId) {
   const estadoAsistencia = await obtenerEstadoAsistencia(cursoId, alumno);
@@ -1731,22 +1762,49 @@ async function renderPerfilEstudiante(alumno, cursoId) {
   let htmlAsignaturas = "";
   
   for (const [areaId, area] of Object.entries(AREAS_ACADEMICAS)) {
-    const notas = registroAcademico[areaId] || {};
+    const notasArea = registroAcademico[areaId] || {};
     
     htmlAsignaturas += `
-      <div class="card" style="margin-bottom: 1rem;">
+      <div class="card" style="margin-bottom: 1rem; border: 1.5px solid var(--color-border-secondary); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
         <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 500; color: var(--color-text-primary);">${area.nombre}</h4>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+        
+        <!-- Selector de Cuatrimestre -->
+        <div style="margin-bottom: 12px;">
+          <select id="select-periodo-${areaId}" class="form-select" style="width: 100%; padding: 8px; border: 1px solid var(--color-border-secondary); border-radius: 4px;" onchange="cambiarPeriodo('${areaId}', this.value)">
+    `;
+    
+    for (const [periodoId, periodo] of Object.entries(PERIODOS)) {
+      htmlAsignaturas += `<option value="${periodoId}">${periodo.icono} ${periodo.nombre}</option>`;
+    }
+    
+    htmlAsignaturas += `
+          </select>
+        </div>
+        
+        <!-- Grid de Asignaturas -->
+        <div id="asignaturas-${areaId}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
     `;
     
     for (const asignatura of area.asignaturas) {
       const asigId = asignatura.toLowerCase().replace(/[^\w]/g, "_");
-      const nota = notas[asigId] || "";
+      const notasAsig = notasArea[asigId] || {};
+      const notaPrimero = notasAsig["1er_cuatrimestre"] || "";
       
       htmlAsignaturas += `
         <div class="form-group">
           <label class="form-label">${asignatura}</label>
-          <input type="number" class="inp" min="0" max="10" step="0.5" value="${nota}" placeholder="—" onchange="guardarCalificacion('${cursoId}', '${alumno}', '${areaId}', '${asigId}', this.value)" style="text-align: center; font-weight: 500;" />
+          <input 
+            type="number" 
+            class="inp nota-input-${areaId}" 
+            data-asig="${asigId}" 
+            min="0" 
+            max="10" 
+            step="0.5" 
+            value="${notaPrimero}" 
+            placeholder="—" 
+            onchange="guardarCalificacionConPeriodo('${cursoId}', '${alumno}', '${areaId}', this.dataset.asig, this.value, document.getElementById('select-periodo-${areaId}').value)" 
+            style="text-align: center; font-weight: 500;" 
+          />
         </div>
       `;
     }
@@ -1756,7 +1814,7 @@ async function renderPerfilEstudiante(alumno, cursoId) {
   
   const html = `
     <div class="panel-wrap">
-      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1.5px solid var(--color-border-secondary);">
         <div style="width: 80px; height: 80px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600; color: white; flex-shrink: 0;">${iniciales}</div>
         <div style="flex: 1;">
           <h2 style="margin: 0 0 4px; font-size: 22px; font-weight: 700; color: var(--color-text-primary);">${alumno}</h2>
@@ -1801,11 +1859,11 @@ async function obtenerRegistroAcademico(cursoId, alumno) {
   }
 }
 
-// ── GUARDAR CALIFICACIÓN ─────────────────────────────────────────────
-function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
+// ── GUARDAR CALIFICACIÓN CON PERÍODO ─────────────────────────────────
+function guardarCalificacionConPeriodo(cursoId, alumno, areaId, asigId, valor, periodo) {
   const cid = cursoId.replace(/[°\s]/g, "_");
   const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
-  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "academico", areaId, asigId);
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "academico", areaId, asigId, periodo);
   
   const calif = valor.trim() === "" ? null : parseFloat(valor);
   
@@ -1817,6 +1875,32 @@ function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
   db.ref(path).set(calif).catch(err => {
     console.error("Error guardando calificación:", err);
   });
+}
+
+// ── CAMBIAR PERÍODO Y ACTUALIZAR INPUTS ──────────────────────────────
+async function cambiarPeriodo(areaId, periodId) {
+  const cursoId = JSON.parse(sessionStorage.getItem("estudianteActual")).cursoId;
+  const alumno = JSON.parse(sessionStorage.getItem("estudianteActual")).nombre;
+  const registroAcademico = await obtenerRegistroAcademico(cursoId, alumno);
+  const notasArea = registroAcademico[areaId] || {};
+  const area = AREAS_ACADEMICAS[areaId];
+  
+  // Actualizar los inputs con las notas del período seleccionado
+  for (const asignatura of area.asignaturas) {
+    const asigId = asignatura.toLowerCase().replace(/[^\w]/g, "_");
+    const notasAsig = notasArea[asigId] || {};
+    const notaPeriodo = notasAsig[periodId] || "";
+    const input = document.querySelector(`.nota-input-${areaId}[data-asig="${asigId}"]`);
+    if (input) {
+      input.value = notaPeriodo;
+    }
+  }
+}
+
+// ── GUARDAR CALIFICACIÓN (COMPATIBILIDAD) ──────────────────────────
+function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
+  const periodo = "1er_cuatrimestre"; // Default al primer cuatrimestre
+  guardarCalificacionConPeriodo(cursoId, alumno, areaId, asigId, valor, periodo);
 }
 
 // ── VOLVER A VISTA DE ESTUDIANTES ────────────────────────────────────
