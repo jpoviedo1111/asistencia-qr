@@ -1765,12 +1765,23 @@ async function renderPerfilEstudiante(alumno, cursoId) {
     const notasArea = registroAcademico[areaId] || {};
     
     htmlAsignaturas += `
-      <div class="card" style="margin-bottom: 1rem; border: 1.5px solid var(--color-border-secondary); box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 500; color: var(--color-text-primary);">${area.nombre}</h4>
+      <div class="card" style="margin-bottom: 1rem; border: 1.5px solid var(--color-border-secondary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); background: var(--color-background-primary);">
+        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--color-text-primary);">${area.nombre}</h4>
         
-        <!-- Selector de Cuatrimestre -->
+        <!-- Selector de Cuatrimestre con mejor visualización -->
         <div style="margin-bottom: 12px;">
-          <select id="select-periodo-${areaId}" class="form-select" style="width: 100%; padding: 8px; border: 1px solid var(--color-border-secondary); border-radius: 4px;" onchange="cambiarPeriodo('${areaId}', this.value)">
+          <select id="select-periodo-${areaId}" class="form-select" style="
+            width: 100%; 
+            padding: 10px; 
+            border: 1.5px solid var(--color-border-secondary); 
+            border-radius: 6px; 
+            background: var(--color-background-primary);
+            color: var(--color-text-primary);
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+          " onchange="cambiarPeriodo('${areaId}', this.value)" onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.15)';" onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">
     `;
     
     for (const [periodoId, periodo] of Object.entries(PERIODOS)) {
@@ -1781,8 +1792,8 @@ async function renderPerfilEstudiante(alumno, cursoId) {
           </select>
         </div>
         
-        <!-- Grid de Asignaturas -->
-        <div id="asignaturas-${areaId}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+        <!-- Grid de Asignaturas con mejor visualización -->
+        <div id="asignaturas-${areaId}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
     `;
     
     for (const asignatura of area.asignaturas) {
@@ -1791,8 +1802,8 @@ async function renderPerfilEstudiante(alumno, cursoId) {
       const notaPrimero = notasAsig["1er_cuatrimestre"] || "";
       
       htmlAsignaturas += `
-        <div class="form-group">
-          <label class="form-label">${asignatura}</label>
+        <div class="form-group" style="background: var(--color-background-secondary); padding: 10px; border-radius: 6px; border: 1px solid var(--color-border-tertiary);">
+          <label class="form-label" style="font-size: 12px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 6px; display: block;">${asignatura}</label>
           <input 
             type="number" 
             class="inp nota-input-${areaId}" 
@@ -1803,7 +1814,19 @@ async function renderPerfilEstudiante(alumno, cursoId) {
             value="${notaPrimero}" 
             placeholder="—" 
             onchange="guardarCalificacionConPeriodo('${cursoId}', '${alumno}', '${areaId}', this.dataset.asig, this.value, document.getElementById('select-periodo-${areaId}').value)" 
-            style="text-align: center; font-weight: 500;" 
+            style="
+              text-align: center; 
+              font-weight: 600; 
+              padding: 8px; 
+              border: 1.5px solid var(--color-border-secondary); 
+              border-radius: 4px; 
+              background: var(--color-background-primary);
+              color: var(--color-text-primary);
+              font-size: 13px;
+              transition: all 0.2s;
+            " 
+            onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.15)';"
+            onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='none';"
           />
         </div>
       `;
@@ -1814,28 +1837,28 @@ async function renderPerfilEstudiante(alumno, cursoId) {
   
   const html = `
     <div class="panel-wrap">
-      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1.5px solid var(--color-border-secondary);">
-        <div style="width: 80px; height: 80px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600; color: white; flex-shrink: 0;">${iniciales}</div>
+      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding: 16px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); border: 1.5px solid var(--color-border-secondary);">
+        <div style="width: 80px; height: 80px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${iniciales}</div>
         <div style="flex: 1;">
           <h2 style="margin: 0 0 4px; font-size: 22px; font-weight: 700; color: var(--color-text-primary);">${alumno}</h2>
           <p style="margin: 0 0 8px; font-size: 13px; color: var(--color-text-secondary);">Curso: ${cursoId} • Turno: ${TURNO}</p>
           <p style="margin: 0; font-size: 12px; color: var(--color-text-tertiary);">Presentes: ${estadoAsistencia.totalPresentes} | Días: ${estadoAsistencia.totalDias}</p>
         </div>
-        <button class="btn-outline" onclick="volverAEstudiantes()">Volver</button>
+        <button class="btn-outline" onclick="volverAEstudiantes()" style="white-space: nowrap;">Volver</button>
       </div>
       
-      <div class="stats-grid">
-        <div class="stat-card ${estadoAsistencia.porcentaje >= 80 ? 'green' : 'red'}">
-          <div class="stat-num">${estadoAsistencia.porcentaje}%</div>
-          <div class="stat-lbl">Asistencia</div>
+      <div class="stats-grid" style="margin-bottom: 20px;">
+        <div class="stat-card ${estadoAsistencia.porcentaje >= 80 ? 'green' : 'red'}" style="background: var(--color-background-secondary); border: 1.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px; text-align: center;">
+          <div class="stat-num" style="font-size: 24px; font-weight: 700; color: ${estadoAsistencia.porcentaje >= 80 ? 'var(--color-text-success)' : 'var(--color-text-danger)'};">${estadoAsistencia.porcentaje}%</div>
+          <div class="stat-lbl" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Asistencia</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-num">${estadoAsistencia.totalPresentes}</div>
-          <div class="stat-lbl">Presentes</div>
+        <div class="stat-card" style="background: var(--color-background-secondary); border: 1.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px; text-align: center;">
+          <div class="stat-num" style="font-size: 24px; font-weight: 700; color: var(--color-text-primary);">${estadoAsistencia.totalPresentes}</div>
+          <div class="stat-lbl" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Presentes</div>
         </div>
-        <div class="stat-card red">
-          <div class="stat-num">${estadoAsistencia.totalDias - estadoAsistencia.totalPresentes}</div>
-          <div class="stat-lbl">Ausentes</div>
+        <div class="stat-card red" style="background: var(--color-background-secondary); border: 1.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px; text-align: center;">
+          <div class="stat-num" style="font-size: 24px; font-weight: 700; color: var(--color-text-danger);">${estadoAsistencia.totalDias - estadoAsistencia.totalPresentes}</div>
+          <div class="stat-lbl" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">Ausentes</div>
         </div>
       </div>
       
