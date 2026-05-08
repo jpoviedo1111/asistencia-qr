@@ -1946,24 +1946,21 @@ async function renderPerfilEstudiante(alumno, cursoId) {
           <!-- CARGA DE ARCHIVOS -->
           <div style="margin-bottom: 12px;">
             <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">📎 Adjuntar Certificado (Opcional)</label>
-            <div style="
-              border: 2px dashed #64748b;
+            <input type="file" id="archivo-certificado" style="
+              width: 100%;
+              padding: 10px;
+              border: 2px solid #64748b;
               border-radius: 4px;
-              padding: 12px;
-              text-align: center;
-              background: rgba(15, 23, 42, 0.5);
+              background: #0f172a;
+              color: #e2e8f0;
+              font-size: 13px;
+              box-sizing: border-box;
               cursor: pointer;
-              transition: all 0.2s;
-            " onmouseover="this.style.borderColor='#93c5fd'; this.style.background='rgba(59, 130, 246, 0.1)';" onmouseout="this.style.borderColor='#64748b'; this.style.background='rgba(15, 23, 42, 0.5)';" onclick="document.getElementById('archivo-certificado').click()">
-              <input type="file" id="archivo-certificado" style="display: none;" accept="image/*,.pdf" onchange="mostrarNombreArchivo(this)" />
-              <div style="font-size: 12px; color: #93c5fd; font-weight: 500;">
-                🖼️ Click o arrastra archivo aquí
-              </div>
-              <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
-                (PNG, JPG, PDF - máx 5MB)
-              </div>
-              <div id="nombre-archivo" style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500; display: none;"></div>
+            " accept="image/*,.pdf" onchange="mostrarNombreArchivo(this)" />
+            <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
+              PNG, JPG, PDF - máx 5MB
             </div>
+            <div id="nombre-archivo" style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500; display: none;"></div>
           </div>
           
           <button onclick="guardarJustificacionFalta('${cursoId}', '${alumno}')" style="
