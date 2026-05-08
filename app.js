@@ -1947,52 +1947,6 @@ async function renderPerfilEstudiante(alumno, cursoId) {
       
       <h3 style="margin: 1.5rem 0 1rem; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">Registro Académico por Áreas</h3>
       ${htmlAsignaturas}
-          <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha de la Falta</label>
-          <input type="date" id="fecha-falta" style="
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #64748b;
-            border-radius: 4px;
-            background: #0f172a;
-            color: #e2e8f0;
-            font-size: 13px;
-            box-sizing: border-box;
-          " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
-        </div>
-        
-        <div style="margin-bottom: 12px;">
-          <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Motivo de Justificación</label>
-          <textarea id="motivo-falta" placeholder="Ej: Enfermedad, cita médica, problema familiar, etc." style="
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #64748b;
-            border-radius: 4px;
-            background: #0f172a;
-            color: #e2e8f0;
-            font-size: 13px;
-            min-height: 80px;
-            resize: vertical;
-            font-family: inherit;
-            box-sizing: border-box;
-          " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';"></textarea>
-        </div>
-        
-        <button onclick="guardarJustificacionFalta('${cursoId}', '${alumno}')" style="
-          width: 100%;
-          padding: 10px;
-          background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-          color: white;
-          border: none;
-          border-radius: 4px;
-          font-weight: 600;
-          cursor: pointer;
-          font-size: 13px;
-          transition: all 0.2s;
-          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-        " onmouseover="this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.5)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.3)'; this.style.transform='translateY(0)';">
-          Guardar Justificación
-        </button>
-      </div>
     </div>
   `;
   
