@@ -224,15 +224,11 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
 }
 
 // ── VOLVER AL ADMIN PANEL ───────────────────────────────────
-// ── VOLVER AL ADMIN PANEL ───────────────────────────────────
 function volverAlAdmin() {
-  // Verificar que renderAdminPanel esté definida y disponible
-  if (typeof renderAdminPanel === 'function') {
+  if (currentRole === "admin" || sessionStorage.getItem("isAdmin") === "true") {
     renderAdminPanel();
   } else {
-    console.error("❌ renderAdminPanel no está disponible");
-    // Fallback: volver al panel anterior
-    location.reload();
+    console.error("No tienes permisos de admin");
   }
 }
 
@@ -307,10 +303,6 @@ function renderAdminPanel() {
   cargarListaPreceptores();
   initDarkMode();
 }
-
-// Registrar en window para asegurar disponibilidad global
-window.renderAdminPanel = renderAdminPanel;
-window.volverAlAdmin = volverAlAdmin;
 
 function cargarListaPreceptores() {
   db.ref("preceptores").once("value", snap => {
