@@ -7,6 +7,42 @@ const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const YEAR      = 2026;
 
+// ── ESTRUCTURA DE ÁREAS Y ASIGNATURAS ────────────────────────────────
+const AREAS_ACADEMICAS = {
+  "ciencias-sociales": {
+    nombre: "Ciencias Sociales",
+    asignaturas: ["Construcción de Ciudad", "Economía", "Geografía", "Historia"]
+  },
+  "matematica-informatica": {
+    nombre: "Matemática e Informática",
+    asignaturas: ["Matemática", "Informática"]
+  },
+  "educacion-fisica": {
+    nombre: "E.F.I",
+    asignaturas: ["E.F.I"]
+  },
+  "lenguajes-produccion": {
+    nombre: "Lenguajes y Producción Cultural",
+    asignaturas: ["Artes Visuales", "Lengua y Literatura", "Lenguas Otras", "Lenguas Preexistentes"]
+  },
+  "integracion-tecnologica": {
+    nombre: "Integración Tecnológica",
+    asignaturas: ["Integración Tecnológica"]
+  },
+  "investigacion-orientaciones": {
+    nombre: "Investigación de las Orientaciones",
+    asignaturas: ["Investigación de las Orientaciones"]
+  },
+  "ciencias-naturales": {
+    nombre: "Ciencias Naturales",
+    asignaturas: ["Biología", "Física", "Química"]
+  },
+  "comunicacion-medios": {
+    nombre: "Comunicación y Medios",
+    asignaturas: ["Comunicación y Medios"]
+  }
+};
+
 // ── Helpers ───────────────────────────────────────────────
 function getFechaHoy() {
   const now = new Date();
@@ -1570,4 +1606,418 @@ async function exportarPlanillaCompleta() {
   } catch(e) { console.error(e); alert("Error: "+e.message); }
 
   if (btn) { btn.disabled=false; btn.textContent="Planilla Excel"; }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  TARJETAS DE ESTUDIANTES + REGISTRO ACADÉMICO POR ÁREAS
+// ══════════════════════════════════════════════════════════════════════
+
+// ── CARGAR LISTA DE ESTUDIANTES EN GRID (TARJETAS) ───────────────────
+async function renderEstudiantesGrid(cursoId) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "alumnos");
+  
+  const alumnosSnap = await db.ref(path).once("value");
+  const alumnosObj = alumnosSnap.val() || {};
+  const alumnos = Object.values(alumnosObj);
+  
+  let html = `
+    <div style="margin-bottom: 1.5rem;">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Lista de Estudiantes · ${cursoId}</h2>
+          <p class="panel-sub">${alumnos.length} estudiantes registrados</p>
+        </div>
+      </div>
+      
+      <input type="text" id="buscar-estudiante" placeholder="Buscar estudiante..." class="inp" style="margin-bottom: 1.5rem; max-width: 400px;" onkeyup="filtrarTarjetasEstudiantes(this.value)" />
+      
+      <div id="estudiantes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+  `;
+  
+  for (const alumno of alumnos) {
+    const iniciales = alumno.split(" ").map(n => n[0]).join("").substring(0, 2);
+    const estadoAsistencia = await obtenerEstadoAsistencia(cid, alumno);
+    const colorAvatar = obtenerColorAvatar(alumno);
+    
+    html += `
+      <div class="estudiante-card" data-nombre="${alumno.toLowerCase()}" onclick="irAlPerfilEstudiante('${alumno}', '${cid}')" style="
+        background: var(--color-background-primary);
+        border: 0.5px solid var(--color-border-tertiary);
+        border-radius: var(--border-radius-lg);
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.15s;
+      " onmouseover="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)';" onmouseout="this.style.borderColor='var(--color-border-tertiary)'; this.style.boxShadow='none';">
+        
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <div style="
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: ${colorAvatar};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+          ">${iniciales}</div>
+          <div style="min-width: 0; flex: 1;">
+            <p style="margin: 0; font-size: 13px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${alumno}</p>
+          </div>
+        </div>
+        
+        <div style="padding: 8px 0; border-top: 0.5px solid var(--color-border-tertiary); font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--color-text-secondary);">Asistencia</span>
+            <span style="color: ${estadoAsistencia.color}; font-weight: 500;">${estadoAsistencia.porcentaje}%</span>
+          </div>
+          <div style="width: 100%; height: 4px; background: var(--color-background-secondary); border-radius: 2px; overflow: hidden;">
+            <div style="height: 100%; background: ${estadoAsistencia.color}; width: ${estadoAsistencia.porcentaje}%;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  html += `
+      </div>
+    </div>
+  `;
+  
+  return html;
+}
+
+// ── OBTENER ESTADO DE ASISTENCIA PARA TARJETA ────────────────────────
+async function obtenerEstadoAsistencia(cursoId, alumno) {
+  const path = dbPath(currentData.id, "cursos", cursoId, "presentes");
+  const snap = await db.ref(path).once("value");
+  const presentes = snap.val() || {};
+  
+  let totalPresentes = 0;
+  let totalDias = 0;
+  const alumnoNorm = alumno.toLowerCase().trim();
+  
+  for (const fecha in presentes) {
+    const pd = presentes[fecha] ? Object.values(presentes[fecha]) : [];
+    totalDias++;
+    const encontrado = pd.some(p => 
+      p.nombre.toLowerCase().trim() === alumnoNorm || 
+      alumnoNorm.split(" ").some(part => part.length > 2 && p.nombre.toLowerCase().includes(part))
+    );
+    if (encontrado) totalPresentes++;
+  }
+  
+  const porcentaje = totalDias > 0 ? Math.round((totalPresentes / totalDias) * 100) : 0;
+  const color = porcentaje >= 80 ? "var(--color-text-success)" : 
+                porcentaje >= 70 ? "var(--color-text-warning)" : 
+                "var(--color-text-danger)";
+  
+  return { porcentaje, color, totalPresentes, totalDias };
+}
+
+// ── OBTENER COLOR PARA AVATAR ────────────────────────────────────────
+function obtenerColorAvatar(nombre) {
+  const colores = [
+    "#3B82F6", "#10B981", "#F59E0B", "#EF4444", 
+    "#8B5CF6", "#06B6D4", "#EC4899", "#6366F1"
+  ];
+  const hash = nombre.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colores[hash % colores.length];
+}
+
+// ── FILTRAR TARJETAS EN TIEMPO REAL ──────────────────────────────────
+function filtrarTarjetasEstudiantes(texto) {
+  const cards = document.querySelectorAll(".estudiante-card");
+  const textoNorm = texto.toLowerCase().trim();
+  
+  cards.forEach(card => {
+    const nombre = card.getAttribute("data-nombre");
+    if (nombre.includes(textoNorm)) {
+      card.style.display = "block";
+    } else {
+      card.style.display = "none";
+    }
+  });
+}
+
+// ── IR AL PERFIL DE UN ESTUDIANTE ────────────────────────────────────
+function irAlPerfilEstudiante(alumno, cursoId) {
+  sessionStorage.setItem("estudianteActual", JSON.stringify({
+    nombre: alumno,
+    cursoId: cursoId
+  }));
+  renderPerfilEstudiante(alumno, cursoId);
+}
+
+// ── RENDERIZAR PERFIL DEL ESTUDIANTE ─────────────────────────────────
+async function renderPerfilEstudiante(alumno, cursoId) {
+  const estadoAsistencia = await obtenerEstadoAsistencia(cursoId, alumno);
+  const registroAcademico = await obtenerRegistroAcademico(cursoId, alumno);
+  const iniciales = alumno.split(" ").map(n => n[0]).join("").substring(0, 2);
+  const colorAvatar = obtenerColorAvatar(alumno);
+  
+  let htmlAsignaturas = "";
+  
+  for (const [areaId, area] of Object.entries(AREAS_ACADEMICAS)) {
+    const notas = registroAcademico[areaId] || {};
+    
+    htmlAsignaturas += `
+      <div class="card" style="margin-bottom: 1rem;">
+        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 500; color: var(--color-text-primary);">${area.nombre}</h4>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+    `;
+    
+    for (const asignatura of area.asignaturas) {
+      const asigId = asignatura.toLowerCase().replace(/[^\w]/g, "_");
+      const nota = notas[asigId] || "";
+      
+      htmlAsignaturas += `
+        <div class="form-group">
+          <label class="form-label">${asignatura}</label>
+          <input type="number" 
+            class="inp" 
+            min="0" 
+            max="10" 
+            step="0.5" 
+            value="${nota}" 
+            placeholder="—" 
+            onchange="guardarCalificacion('${cursoId}', '${alumno}', '${areaId}', '${asigId}', this.value)" 
+            style="text-align: center; font-weight: 500;"
+          />
+        </div>
+      `;
+    }
+    
+    htmlAsignaturas += `
+        </div>
+      </div>
+    `;
+  }
+  
+  const html = `
+    <div class="panel-wrap">
+      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+        <div style="
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: ${colorAvatar};
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 32px;
+          font-weight: 600;
+          color: white;
+          flex-shrink: 0;
+        ">${iniciales}</div>
+        
+        <div style="flex: 1;">
+          <h2 style="margin: 0 0 4px; font-size: 22px; font-weight: 700; color: var(--color-text-primary);">${alumno}</h2>
+          <p style="margin: 0 0 8px; font-size: 13px; color: var(--color-text-secondary);">Curso: ${cursoId} • Turno: ${TURNO}</p>
+          <p style="margin: 0; font-size: 12px; color: var(--color-text-tertiary);">Presentes: ${estadoAsistencia.totalPresentes} | Días: ${estadoAsistencia.totalDias}</p>
+        </div>
+        
+        <button class="btn-outline" onclick="volverAEstudiantes()">Volver</button>
+      </div>
+      
+      <div class="stats-grid">
+        <div class="stat-card ${estadoAsistencia.porcentaje >= 80 ? 'green' : 'red'}">
+          <div class="stat-num">${estadoAsistencia.porcentaje}%</div>
+          <div class="stat-lbl">Asistencia</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">${estadoAsistencia.totalPresentes}</div>
+          <div class="stat-lbl">Presentes</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-num">${estadoAsistencia.totalDias - estadoAsistencia.totalPresentes}</div>
+          <div class="stat-lbl">Ausentes</div>
+        </div>
+      </div>
+      
+      <h3 style="margin: 1.5rem 0 1rem; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">Registro Académico por Áreas</h3>
+      
+      ${htmlAsignaturas}
+    </div>
+  `;
+  
+  document.getElementById("app").innerHTML = html;
+}
+
+// ── OBTENER REGISTRO ACADÉMICO DEL ESTUDIANTE ────────────────────────
+async function obtenerRegistroAcademico(cursoId, alumno) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumno.toLowerCase().replace(/[^\w]/g, "_"), "academico");
+  
+  try {
+    const snap = await db.ref(path).once("value");
+    return snap.val() || {};
+  } catch(e) {
+    return {};
+  }
+}
+
+// ── GUARDAR CALIFICACIÓN ─────────────────────────────────────────────
+function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "academico", areaId, asigId);
+  
+  const calif = valor.trim() === "" ? null : parseFloat(valor);
+  
+  if (calif !== null && (calif < 0 || calif > 10)) {
+    alert("La calificación debe estar entre 0 y 10");
+    return;
+  }
+  
+  db.ref(path).set(calif).catch(err => {
+    console.error("Error guardando calificación:", err);
+    alert("Error al guardar. Intenta de nuevo.");
+  });
+}
+
+// ── VOLVER A VISTA DE ESTUDIANTES ────────────────────────────────────
+function volverAEstudiantes() {
+  sessionStorage.removeItem("estudianteActual");
+  renderPreceptorPanel();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  BACKUP AUTOMÁTICO A GOOGLE DRIVE
+// ══════════════════════════════════════════════════════════════════════
+
+// ── BACKUP AUTOMÁTICO CADA HORA ──────────────────────────────────────
+function iniciarBackupAutomatico() {
+  setInterval(async function() {
+    if (!gdriveToken) return;
+    console.log("🔄 Iniciando backup automático...");
+    await ejecutarBackupAutomatico();
+  }, 3600000);
+  
+  window.addEventListener("beforeunload", async function() {
+    if (gdriveToken) {
+      await ejecutarBackupAutomatico();
+    }
+  });
+}
+
+// ── EJECUTAR BACKUP AUTOMÁTICO ───────────────────────────────────────
+async function ejecutarBackupAutomatico() {
+  try {
+    const snap = await db.ref("preceptores").once("value");
+    const precs = snap.val() || {};
+    
+    for (const [precId, prec] of Object.entries(precs)) {
+      const cursos = prec.cursos || [];
+      
+      for (const curso of cursos) {
+        const cid = getCursoId(curso);
+        
+        const [fechasSnap, presentesSnap, alumnosSnap, estudiantesSnap] = await Promise.all([
+          db.ref(`preceptores/${precId}/datos/cursos/${cid}/fechas`).once("value"),
+          db.ref(`preceptores/${precId}/datos/cursos/${cid}/presentes`).once("value"),
+          db.ref(`preceptores/${precId}/datos/cursos/${cid}/alumnos`).once("value"),
+          db.ref(`preceptores/${precId}/datos/cursos/${cid}/estudiantes`).once("value")
+        ]);
+        
+        const backupData = {
+          fecha_backup: new Date().toISOString(),
+          curso: curso,
+          preceptor: prec.nombre,
+          datos: {
+            fechas: fechasSnap.val() || {},
+            presentes: presentesSnap.val() || {},
+            alumnos: alumnosSnap.val() || {},
+            estudiantes: estudiantesSnap.val() || {}
+          }
+        };
+        
+        await crearArchivoBackupDrive(
+          `Backup_${cid}_${new Date().toISOString().split('T')[0]}.json`,
+          JSON.stringify(backupData, null, 2),
+          "Backup IFD12 - " + prec.nombre
+        );
+      }
+    }
+    
+    console.log("✅ Backup automático completado");
+  } catch(e) {
+    console.error("❌ Error en backup automático:", e);
+  }
+}
+
+// ── CREAR ARCHIVO DE BACKUP EN DRIVE ─────────────────────────────────
+async function crearArchivoBackupDrive(nombre, contenido, nombreCarpeta) {
+  if (!gdriveToken) return;
+  
+  try {
+    const folderId = await obtenerOCrearCarpeta(nombreCarpeta);
+    const blob = new Blob([contenido], { type: "application/json" });
+    
+    const formData = new FormData();
+    formData.append("file", blob);
+    
+    const metadataBlob = new Blob([JSON.stringify({
+      name: nombre,
+      parents: [folderId],
+      mimeType: "application/json"
+    })], { type: "application/json" });
+    
+    formData.append("metadata", metadataBlob);
+    
+    const response = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + gdriveToken },
+      body: formData
+    });
+    
+    return await response.json();
+  } catch(e) {
+    console.error("Error creando backup en Drive:", e);
+  }
+}
+
+// ── CREAR BACKUP LOCAL (JSON) ────────────────────────────────────────
+function crearBackupLocal() {
+  db.ref("preceptores").once("value", function(snap) {
+    const backup = {
+      fecha: new Date().toISOString(),
+      datos: snap.val()
+    };
+    
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backup_asistencia_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+// ── RESTAURAR DESDE BACKUP LOCAL ─────────────────────────────────────
+function restaurarDesdeBackup(archivo) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if (!backup.datos) throw new Error("Formato de backup inválido");
+      
+      db.ref("preceptores").set(backup.datos, function(err) {
+        if (err) {
+          alert("Error al restaurar: " + err.message);
+        } else {
+          alert("✅ Backup restaurado correctamente");
+          location.reload();
+        }
+      });
+    } catch(err) {
+      alert("Error: " + err.message);
+    }
+  };
+  reader.readAsText(archivo);
 }
