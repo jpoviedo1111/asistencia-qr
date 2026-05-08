@@ -1865,6 +1865,58 @@ async function renderPerfilEstudiante(alumno, cursoId) {
       
       <h3 style="margin: 1.5rem 0 1rem; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">Registro Académico por Áreas</h3>
       ${htmlAsignaturas}
+      
+      <h3 style="margin: 2rem 0 1rem; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">Justificación de Faltas</h3>
+      <div style="border: 2px solid #64748b; border-radius: 8px; padding: 16px; background: #1e293b;">
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha de la Falta</label>
+          <input type="date" id="fecha-falta" style="
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #64748b;
+            border-radius: 4px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 13px;
+            box-sizing: border-box;
+          " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
+        </div>
+        
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Motivo de Justificación</label>
+          <textarea id="motivo-falta" placeholder="Ej: Enfermedad, cita médica, problema familiar, etc." style="
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #64748b;
+            border-radius: 4px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 13px;
+            min-height: 80px;
+            resize: vertical;
+            font-family: inherit;
+            box-sizing: border-box;
+          " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';"></textarea>
+        </div>
+        
+        <button onclick="guardarJustificacionFalta('${cursoId}', '${alumno}')" style="
+          width: 100%;
+          padding: 10px;
+          background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 13px;
+          transition: all 0.2s;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        " onmouseover="this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.5)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.3)'; this.style.transform='translateY(0)';">
+          Guardar Justificación
+        </button>
+      </div>
+      
+      <div id="mensaje-falta" style="margin-top: 12px; display: none;"></div>
     </div>
   `;
   
@@ -1931,4 +1983,48 @@ function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
 function volverAEstudiantes() {
   sessionStorage.removeItem("estudianteActual");
   renderPreceptorPanel();
+}
+
+// ── GUARDAR JUSTIFICACIÓN DE FALTA ──────────────────────────────────
+function guardarJustificacionFalta(cursoId, alumno) {
+  const fecha = document.getElementById("fecha-falta").value;
+  const motivo = document.getElementById("motivo-falta").value.trim();
+  const mensajeDiv = document.getElementById("mensaje-falta");
+  
+  if (!fecha) {
+    mensajeDiv.innerHTML = '<div style="background: #ef4444; color: white; padding: 10px; border-radius: 4px; font-size: 12px;">❌ Por favor selecciona una fecha</div>';
+    mensajeDiv.style.display = "block";
+    return;
+  }
+  
+  if (!motivo) {
+    mensajeDiv.innerHTML = '<div style="background: #ef4444; color: white; padding: 10px; border-radius: 4px; font-size: 12px;">❌ Por favor ingresa el motivo de justificación</div>';
+    mensajeDiv.style.display = "block";
+    return;
+  }
+  
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fecha);
+  
+  db.ref(path).set({
+    fecha: fecha,
+    motivo: motivo,
+    guardado: new Date().toISOString()
+  }).then(() => {
+    mensajeDiv.innerHTML = '<div style="background: #10b981; color: white; padding: 10px; border-radius: 4px; font-size: 12px;">✅ Justificación guardada correctamente</div>';
+    mensajeDiv.style.display = "block";
+    
+    // Limpiar campos
+    document.getElementById("fecha-falta").value = "";
+    document.getElementById("motivo-falta").value = "";
+    
+    // Ocultar mensaje después de 3 segundos
+    setTimeout(() => {
+      mensajeDiv.style.display = "none";
+    }, 3000);
+  }).catch(err => {
+    mensajeDiv.innerHTML = '<div style="background: #ef4444; color: white; padding: 10px; border-radius: 4px; font-size: 12px;">❌ Error al guardar: ' + err.message + '</div>';
+    mensajeDiv.style.display = "block";
+  });
 }
