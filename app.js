@@ -7,6 +7,10 @@ const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const YEAR      = 2026;
 
+// ── CONFIGURACIÓN GOOGLE DRIVE PARA CERTIFICADOS ──────────────
+// Reutilizar el token existente de gdriveToken (usado para Excel backup)
+let certificadosFolderId = null;
+
 // ── Helpers ───────────────────────────────────────────────
 function getFechaHoy() {
   const now = new Date();
@@ -219,6 +223,15 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
   return new Blob([wbOut], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
 
+// ── VOLVER AL ADMIN PANEL ───────────────────────────────────
+function volverAlAdmin() {
+  if (currentRole === "admin" || sessionStorage.getItem("isAdmin") === "true") {
+    renderAdminPanel();
+  } else {
+    console.error("No tienes permisos de admin");
+  }
+}
+
 function renderAdminPanel() {
   const u = currentUser;
   document.getElementById("app").innerHTML = `
@@ -373,7 +386,7 @@ let cursoActivo  = null;
 let regListener  = null;
 let fechaActual  = null;
 
-function renderPreceptorPanel(fromAdmin = false) {
+async function renderPreceptorPanel(fromAdmin = false) {
   const p      = currentData;
   const cursos = (p.cursos || []).filter(c => c && c !== "null");
   if (!cursoActivo || !cursos.includes(cursoActivo)) cursoActivo = cursos[0] || null;
@@ -394,21 +407,27 @@ function renderPreceptorPanel(fromAdmin = false) {
             </select>` : `<span style="font-weight:500;font-size:14px;">${cursoActivo}</span>`}
           <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
           ${fromAdmin
-            ? `<button class="btn-outline sm" onclick="renderAdminPanel()">← Admin</button>`
+            ? `<button class="btn-outline sm" onclick="volverAlAdmin()">← Admin</button>`
             : `<button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>`}
         </div>
       </header>
 
       <div class="tabs">
         <button class="tab active" onclick="showTab('tab-alumnos', this)">Estudiantes</button>
+        <button class="tab" onclick="showTab('tab-agregar-alumnos', this)">Agregar Estudiantes</button>
         <button class="tab" onclick="showTab('tab-qr', this)">Código QR</button>
         <button class="tab" onclick="showTab('tab-registro', this)">Registro</button>
       </div>
 
       <!-- Alumnos -->
       <div id="tab-alumnos" class="tab-content active">
+        ${await renderEstudiantesGrid(cursoActivo)}
+      </div>
+
+      <!-- Agregar Alumnos -->
+      <div id="tab-agregar-alumnos" class="tab-content">
         <div class="card">
-          <h2 class="card-title">Lista de estudiantes — ${cursoActivo}</h2>
+          <h2 class="card-title">Agregar estudiantes — ${cursoActivo}</h2>
           <div class="row-gap">
             <input id="inp-alumno" type="text" class="inp" placeholder="Apellido y nombre"
               onkeydown="if(event.key==='Enter')addAlumno()"/>
@@ -1082,7 +1101,7 @@ function renderVistaAlumno(cursoId, precId) {
   const ahora  = new Date();
   const horaAR = new Date(ahora.toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
   const min    = horaAR.getHours()*60 + horaAR.getMinutes();
-  if (min < 13*60+30 || min > 18*60) {
+  if (min < 8*60 || min > 18*60) {
     const horaStr = horaAR.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
     app.innerHTML = `
       <div class="phone-wrap">
@@ -1093,7 +1112,7 @@ function renderVistaAlumno(cursoId, precId) {
         <div class="phone-body">
           <div class="alert-error" style="text-align:center;padding:1.5rem;">
             <div style="font-size:32px;margin-bottom:12px;">🕐</div>
-            <div style="font-weight:600;">El registro está disponible de 13:30 a 18:00 hs</div>
+            <div style="font-weight:600;">El registro está disponible de 08:00 a 18:00 hs</div>
             <div style="margin-top:10px;font-size:13px;">Hora actual: ${horaStr} hs</div>
           </div>
         </div>
@@ -1570,4 +1589,914 @@ async function exportarPlanillaCompleta() {
   } catch(e) { console.error(e); alert("Error: "+e.message); }
 
   if (btn) { btn.disabled=false; btn.textContent="Planilla Excel"; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  NUEVAS FUNCIONES - TARJETAS DE ESTUDIANTES Y REGISTRO ACADÉMICO
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── ESTRUCTURA DE ÁREAS Y ASIGNATURAS ────────────────────────────────
+const AREAS_ACADEMICAS = {
+  "ciencias-sociales": {
+    nombre: "Ciencias Sociales",
+    asignaturas: ["Construcción de Ciudad", "Economía", "Geografía", "Historia"]
+  },
+  "matematica-informatica": {
+    nombre: "Matemática e Informática",
+    asignaturas: ["Matemática", "Informática"]
+  },
+  "educacion-fisica": {
+    nombre: "E.F.I",
+    asignaturas: ["E.F.I"]
+  },
+  "lenguajes-produccion": {
+    nombre: "Lenguajes y Producción Cultural",
+    asignaturas: ["Artes Visuales", "Lengua y Literatura", "Lenguas Otras", "Lenguas Preexistentes"]
+  },
+  "integracion-tecnologica": {
+    nombre: "Integración Tecnológica",
+    asignaturas: ["Integración Tecnológica"]
+  },
+  "investigacion-orientaciones": {
+    nombre: "Investigación de las Orientaciones",
+    asignaturas: ["Investigación de las Orientaciones"]
+  },
+  "ciencias-naturales": {
+    nombre: "Ciencias Naturales",
+    asignaturas: ["Biología", "Física", "Química"]
+  },
+  "comunicacion-medios": {
+    nombre: "Comunicación y Medios",
+    asignaturas: ["Comunicación y Medios"]
+  }
+};
+
+// ── RENDER TARJETAS DE ESTUDIANTES EN GRID ───────────────────────────
+async function renderEstudiantesGrid(cursoId) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "alumnos");
+  
+  const alumnosSnap = await db.ref(path).once("value");
+  const alumnosObj = alumnosSnap.val() || {};
+  const alumnos = Object.values(alumnosObj).sort((a, b) => a.localeCompare(b, 'es-AR'));
+  
+  let html = `
+    <div style="margin-bottom: 1.5rem;">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Lista de Estudiantes · ${cursoId}</h2>
+          <p class="panel-sub">${alumnos.length} estudiantes registrados</p>
+        </div>
+      </div>
+      
+      <input type="text" id="buscar-estudiante" placeholder="Buscar estudiante..." class="inp" style="margin-bottom: 1.5rem; max-width: 400px;" onkeyup="filtrarTarjetasEstudiantes(this.value)" />
+      
+      <div id="estudiantes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+  `;
+  
+  for (const alumno of alumnos) {
+    const iniciales = alumno.split(" ").map(n => n[0]).join("").substring(0, 2);
+    const estadoAsistencia = await obtenerEstadoAsistencia(cid, alumno);
+    const colorAvatar = obtenerColorAvatar(alumno);
+    
+    html += `
+      <div class="estudiante-card" data-nombre="${alumno.toLowerCase()}" onclick="irAlPerfilEstudiante('${alumno}', '${cid}')" style="
+        background: var(--color-background-primary);
+        border: 2px solid var(--color-border-secondary);
+        border-radius: 12px;
+        padding: 14px;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      " onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.25)'; this.style.transform='translateY(-4px)';" onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)'; this.style.transform='translateY(0)';">
+        
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">${iniciales}</div>
+          <div style="min-width: 0; flex: 1;">
+            <p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${alumno}</p>
+          </div>
+        </div>
+        
+        <div style="padding: 10px 0; border-top: 1px solid var(--color-border-tertiary); font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--color-text-secondary); font-weight: 500;">Asistencia</span>
+            <span style="color: ${estadoAsistencia.color}; font-weight: 700;">${estadoAsistencia.porcentaje}%</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: var(--color-background-secondary); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);">
+            <div style="height: 100%; background: ${estadoAsistencia.color}; width: ${estadoAsistencia.porcentaje}%; border-radius: 3px; transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  html += `</div></div>`;
+  return html;
+}
+
+// ── OBTENER ESTADO DE ASISTENCIA ─────────────────────────────────────
+async function obtenerEstadoAsistencia(cursoId, alumno) {
+  const path = dbPath(currentData.id, "cursos", cursoId, "presentes");
+  const snap = await db.ref(path).once("value");
+  const presentes = snap.val() || {};
+  
+  let totalPresentes = 0;
+  let totalDias = 0;
+  const alumnoNorm = alumno.toLowerCase().trim();
+  
+  for (const fecha in presentes) {
+    const pd = presentes[fecha] ? Object.values(presentes[fecha]) : [];
+    totalDias++;
+    const encontrado = pd.some(p => 
+      p.nombre.toLowerCase().trim() === alumnoNorm || 
+      alumnoNorm.split(" ").some(part => part.length > 2 && p.nombre.toLowerCase().includes(part))
+    );
+    if (encontrado) totalPresentes++;
+  }
+  
+  const porcentaje = totalDias > 0 ? Math.round((totalPresentes / totalDias) * 100) : 0;
+  const color = porcentaje >= 80 ? "var(--color-text-success)" : 
+                porcentaje >= 70 ? "var(--color-text-warning)" : 
+                "var(--color-text-danger)";
+  
+  return { porcentaje, color, totalPresentes, totalDias };
+}
+
+// ── OBTENER COLOR PARA AVATAR ────────────────────────────────────────
+function obtenerColorAvatar(nombre) {
+  const colores = [
+    "#3B82F6", "#10B981", "#F59E0B", "#EF4444", 
+    "#8B5CF6", "#06B6D4", "#EC4899", "#6366F1"
+  ];
+  const hash = nombre.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colores[hash % colores.length];
+}
+
+// ── FILTRAR TARJETAS EN TIEMPO REAL ──────────────────────────────────
+function filtrarTarjetasEstudiantes(texto) {
+  const cards = document.querySelectorAll(".estudiante-card");
+  const textoNorm = texto.toLowerCase().trim();
+  
+  cards.forEach(card => {
+    const nombre = card.getAttribute("data-nombre");
+    if (nombre.includes(textoNorm)) {
+      card.style.display = "block";
+    } else {
+      card.style.display = "none";
+    }
+  });
+}
+
+// ── IR AL PERFIL DE UN ESTUDIANTE ────────────────────────────────────
+function irAlPerfilEstudiante(alumno, cursoId) {
+  sessionStorage.setItem("estudianteActual", JSON.stringify({
+    nombre: alumno,
+    cursoId: cursoId
+  }));
+  renderPerfilEstudiante(alumno, cursoId);
+}
+
+// ── CUATRIMESTRES Y PERÍODOS ESPECIALES ──────────────────────────────
+const PERIODOS = {
+  "1er_cuatrimestre": { nombre: "1er Cuatrimestre", icono: "📚" },
+  "2do_cuatrimestre": { nombre: "2do Cuatrimestre", icono: "📚" },
+  "3er_cuatrimestre": { nombre: "3er Cuatrimestre", icono: "📚" }
+};
+
+// ── RENDERIZAR PERFIL DEL ESTUDIANTE ─────────────────────────────────
+async function renderPerfilEstudiante(alumno, cursoId) {
+  // Guardar que venimos del admin si es necesario
+  const esFromAdmin = sessionStorage.getItem("fromAdmin") === "true" || currentRole === "admin";
+  if (esFromAdmin) {
+    sessionStorage.setItem("fromAdmin", "true");
+  }
+  
+  const estadoAsistencia = await obtenerEstadoAsistencia(cursoId, alumno);
+  const registroAcademico = await obtenerRegistroAcademico(cursoId, alumno);
+  const iniciales = alumno.split(" ").map(n => n[0]).join("").substring(0, 2);
+  const colorAvatar = obtenerColorAvatar(alumno);
+  
+  let htmlAsignaturas = "";
+  
+  for (const [areaId, area] of Object.entries(AREAS_ACADEMICAS)) {
+    const notasArea = registroAcademico[areaId] || {};
+    
+    htmlAsignaturas += `
+      <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #64748b; box-shadow: 0 2px 8px rgba(0,0,0,0.5); background: #1e293b; padding: 14px; border-radius: 8px;">
+        <h4 style="margin: 0 0 14px; font-size: 15px; font-weight: 700; color: #e2e8f0;">${area.nombre}</h4>
+        
+        <!-- Selector de Cuatrimestre con colores forzados -->
+        <div style="margin-bottom: 12px;">
+          <select id="select-periodo-${areaId}" class="form-select" style="
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #64748b; 
+            border-radius: 6px; 
+            background: #0f172a !important;
+            color: #e2e8f0 !important;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-sizing: border-box;
+          " onchange="cambiarPeriodo('${areaId}', this.value)" onmouseover="this.style.borderColor='#93c5fd'; this.style.boxShadow='0 0 8px rgba(147, 197, 253, 0.6)';" onmouseout="this.style.borderColor='#64748b'; this.style.boxShadow='none';">
+    `;
+    
+    for (const [periodoId, periodo] of Object.entries(PERIODOS)) {
+      htmlAsignaturas += `<option value="${periodoId}" style="background: #0f172a; color: #e2e8f0;">${periodo.icono} ${periodo.nombre}</option>`;
+    }
+    
+    htmlAsignaturas += `
+          </select>
+        </div>
+        
+        <!-- Grid de Asignaturas con mejor visualización -->
+        <div id="asignaturas-${areaId}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+    `;
+    
+    for (const asignatura of area.asignaturas) {
+      const asigId = asignatura.toLowerCase().replace(/[^\w]/g, "_");
+      const notasAsig = notasArea[asigId] || {};
+      const notaPrimero = notasAsig["1er_cuatrimestre"] || "";
+      
+      htmlAsignaturas += `
+        <div class="form-group" style="background: #1e293b; padding: 10px; border-radius: 6px; border: 2px solid #64748b;">
+          <label class="form-label" style="font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: block;">${asignatura}</label>
+          <input 
+            type="number" 
+            class="inp nota-input-${areaId}" 
+            data-asig="${asigId}" 
+            min="0" 
+            max="10" 
+            step="0.5" 
+            value="${notaPrimero}" 
+            placeholder="—" 
+            onchange="guardarCalificacionConPeriodo('${cursoId}', '${alumno}', '${areaId}', this.dataset.asig, this.value, document.getElementById('select-periodo-${areaId}').value)" 
+            style="
+              width: 100%;
+              text-align: center; 
+              font-weight: 700; 
+              padding: 10px; 
+              border: 2px solid #64748b; 
+              border-radius: 4px; 
+              background: #0f172a !important;
+              color: #e2e8f0 !important;
+              font-size: 14px;
+              transition: all 0.2s;
+              box-sizing: border-box;
+            " 
+            onmouseover="this.style.borderColor='#93c5fd'; this.style.boxShadow='0 0 8px rgba(147, 197, 253, 0.6)';"
+            onmouseout="this.style.borderColor='#64748b'; this.style.boxShadow='none';"
+          />
+        </div>
+      `;
+    }
+    
+    htmlAsignaturas += `</div></div>`;
+  }
+  
+  const html = `
+    <div class="panel-wrap">
+      <div style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; padding: 16px; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); border: 1.5px solid var(--color-border-secondary);">
+        <div style="width: 80px; height: 80px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 600; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">${iniciales}</div>
+        <div style="flex: 1;">
+          <h2 style="margin: 0 0 4px; font-size: 22px; font-weight: 700; color: var(--color-text-primary);">${alumno}</h2>
+          <p style="margin: 0 0 8px; font-size: 13px; color: var(--color-text-secondary);">Curso: ${cursoId} • Turno: ${TURNO}</p>
+          <p style="margin: 0; font-size: 12px; color: var(--color-text-tertiary);">Presentes: ${estadoAsistencia.totalPresentes} | Días: ${estadoAsistencia.totalDias}</p>
+        </div>
+        <button class="btn-outline" onclick="volverAEstudiantes()" style="white-space: nowrap;">Volver</button>
+      </div>
+      
+      <div class="stats-grid" style="margin-bottom: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+        <div style="background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); border: 2px solid #1e40af; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+          <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 4px;">${estadoAsistencia.porcentaje}%</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.9); font-weight: 500;">Asistencia</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: 2px solid #059669; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+          <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 4px;">${estadoAsistencia.totalPresentes}</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.9); font-weight: 500;">Presentes</div>
+        </div>
+        <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: 2px solid #dc2626; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">
+          <div style="font-size: 32px; font-weight: 700; color: white; margin-bottom: 4px;">${estadoAsistencia.totalDias - estadoAsistencia.totalPresentes}</div>
+          <div style="font-size: 12px; color: rgba(255,255,255,0.9); font-weight: 500;">Ausentes</div>
+        </div>
+      </div>
+      
+      <h3 style="margin: 1.5rem 0 1rem; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">Justificación de Faltas</h3>
+      <div style="border: 2px solid #64748b; border-radius: 8px; padding: 16px; background: #1e293b; margin-bottom: 1.5rem;">
+        
+        <!-- SECCIÓN DE FALTAS JUSTIFICADAS DESPLEGABLE -->
+        <div style="margin-bottom: 16px;">
+          <button id="btn-faltas-justificadas" onclick="toggleFaltasJustificadas('${cursoId}', '${alumno}')" style="
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+          " onmouseover="this.style.boxShadow='0 4px 12px rgba(139, 92, 246, 0.5)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.boxShadow='0 2px 8px rgba(139, 92, 246, 0.3)'; this.style.transform='translateY(0)';">
+            <span>📋 Faltas Justificadas</span>
+            <span id="flecha-faltas" style="transition: transform 0.2s;">▼</span>
+          </button>
+          <div id="faltas-justificadas-list" style="display: none; margin-top: 8px; background: #0f172a; border: 1px solid #64748b; border-radius: 4px; padding: 0; max-height: 200px; overflow-y: auto;">
+            <div style="padding: 12px; color: #94a3b8; text-align: center; font-size: 12px;">Cargando faltas justificadas...</div>
+          </div>
+        </div>
+        
+        <!-- SECCIÓN AGREGAR NUEVA JUSTIFICACIÓN -->
+        <div style="border-top: 1px solid #64748b; padding-top: 16px;">
+          <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 600; color: #e2e8f0;">Agregar Nueva Justificación</h4>
+        
+          <!-- RANGO DE FECHAS -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha Desde</label>
+              <input type="date" id="fecha-falta-desde" style="
+                width: 100%;
+                padding: 10px;
+                border: 2px solid #64748b;
+                border-radius: 4px;
+                background: #0f172a;
+                color: #e2e8f0;
+                font-size: 13px;
+                box-sizing: border-box;
+              " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha Hasta</label>
+              <input type="date" id="fecha-falta-hasta" style="
+                width: 100%;
+                padding: 10px;
+                border: 2px solid #64748b;
+                border-radius: 4px;
+                background: #0f172a;
+                color: #e2e8f0;
+                font-size: 13px;
+                box-sizing: border-box;
+              " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Motivo de Justificación</label>
+            <textarea id="motivo-falta" placeholder="Ej: Enfermedad, cita médica, problema familiar, etc." style="
+              width: 100%;
+              padding: 10px;
+              border: 2px solid #64748b;
+              border-radius: 4px;
+              background: #0f172a;
+              color: #e2e8f0;
+              font-size: 13px;
+              min-height: 80px;
+              resize: vertical;
+              font-family: inherit;
+              box-sizing: border-box;
+            " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';"></textarea>
+          </div>
+          
+          <!-- CARGA DE ARCHIVOS -->
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">📎 Adjuntar Certificado (Opcional)</label>
+            <input type="file" id="archivo-certificado" style="
+              width: 100%;
+              padding: 10px;
+              border: 2px solid #64748b;
+              border-radius: 4px;
+              background: #0f172a;
+              color: #e2e8f0;
+              font-size: 13px;
+              box-sizing: border-box;
+              cursor: pointer;
+            " accept="image/*,.pdf" onchange="mostrarNombreArchivo(this)" />
+            <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
+              PNG, JPG, PDF - máx 5MB
+            </div>
+            <div id="nombre-archivo" style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500; display: none;"></div>
+          </div>
+          
+          <button onclick="guardarJustificacionFalta('${cursoId}', '${alumno}')" style="
+            width: 100%;
+            padding: 10px;
+            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+          " onmouseover="this.style.boxShadow='0 4px 12px rgba(59, 130, 246, 0.5)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.boxShadow='0 2px 8px rgba(59, 130, 246, 0.3)'; this.style.transform='translateY(0)';">
+            Guardar Justificación
+          </button>
+        </div>
+      </div>
+      
+      <h3 style="margin: 1.5rem 0 1rem; font-size: 16px; font-weight: 600; color: var(--color-text-primary);">Registro Académico por Áreas</h3>
+      ${htmlAsignaturas}
+    </div>
+  `;
+  
+  document.getElementById("app").innerHTML = html;
+}
+
+// ── OBTENER REGISTRO ACADÉMICO ───────────────────────────────────────
+async function obtenerRegistroAcademico(cursoId, alumno) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumno.toLowerCase().replace(/[^\w]/g, "_"), "academico");
+  try {
+    const snap = await db.ref(path).once("value");
+    return snap.val() || {};
+  } catch(e) {
+    return {};
+  }
+}
+
+// ── GUARDAR CALIFICACIÓN CON PERÍODO ─────────────────────────────────
+function guardarCalificacionConPeriodo(cursoId, alumno, areaId, asigId, valor, periodo) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "academico", areaId, asigId, periodo);
+  
+  const calif = valor.trim() === "" ? null : parseFloat(valor);
+  
+  if (calif !== null && (calif < 0 || calif > 10)) {
+    alert("La calificación debe estar entre 0 y 10");
+    return;
+  }
+  
+  db.ref(path).set(calif).catch(err => {
+    console.error("Error guardando calificación:", err);
+  });
+}
+
+// ── CAMBIAR PERÍODO Y ACTUALIZAR INPUTS ──────────────────────────────
+async function cambiarPeriodo(areaId, periodId) {
+  const cursoId = JSON.parse(sessionStorage.getItem("estudianteActual")).cursoId;
+  const alumno = JSON.parse(sessionStorage.getItem("estudianteActual")).nombre;
+  const registroAcademico = await obtenerRegistroAcademico(cursoId, alumno);
+  const notasArea = registroAcademico[areaId] || {};
+  const area = AREAS_ACADEMICAS[areaId];
+  
+  // Actualizar los inputs con las notas del período seleccionado
+  for (const asignatura of area.asignaturas) {
+    const asigId = asignatura.toLowerCase().replace(/[^\w]/g, "_");
+    const notasAsig = notasArea[asigId] || {};
+    const notaPeriodo = notasAsig[periodId] || "";
+    const input = document.querySelector(`.nota-input-${areaId}[data-asig="${asigId}"]`);
+    if (input) {
+      input.value = notaPeriodo;
+    }
+  }
+}
+
+// ── GUARDAR CALIFICACIÓN (COMPATIBILIDAD) ──────────────────────────
+function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
+  const periodo = "1er_cuatrimestre"; // Default al primer cuatrimestre
+  guardarCalificacionConPeriodo(cursoId, alumno, areaId, asigId, valor, periodo);
+}
+
+// ── VOLVER A VISTA DE ESTUDIANTES ────────────────────────────────────
+function volverAEstudiantes() {
+  sessionStorage.removeItem("estudianteActual");
+  
+  // Verificar si venimos del admin
+  const fromAdmin = sessionStorage.getItem("fromAdmin") === "true";
+  if (fromAdmin) {
+    sessionStorage.removeItem("fromAdmin");
+    renderAdminPanel();
+  } else {
+    renderPreceptorPanel();
+  }
+}
+
+// ── USAR AUTENTICACIÓN EXISTENTE DE GOOGLE DRIVE ────────────────
+// Las funciones obtenerCarpetaCertificados, etc. usan gdriveToken existente
+
+// ── OBTENER O CREAR CARPETA "CERTIFICADOS" EN GOOGLE DRIVE ──────────
+async function obtenerCarpetaCertificados() {
+  if (certificadosFolderId) {
+    return certificadosFolderId;
+  }
+  
+  return new Promise((resolve, reject) => {
+    gapi.client.drive.files.list({
+      'q': "name='Certificados' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      'spaces': 'drive',
+      'pageSize': 1,
+      'fields': 'files(id, name)',
+      'access_token': gdriveToken
+    }).then(response => {
+      const files = response.result.files;
+      
+      if (files && files.length > 0) {
+        certificadosFolderId = files[0].id;
+        console.log("✅ Carpeta Certificados encontrada");
+        resolve(certificadosFolderId);
+      } else {
+        crearCarpetaCertificados().then(id => {
+          certificadosFolderId = id;
+          resolve(id);
+        }).catch(reject);
+      }
+    }).catch(err => {
+      console.error("Error al buscar carpeta:", err);
+      reject(err);
+    });
+  });
+}
+
+function crearCarpetaCertificados() {
+  return new Promise((resolve, reject) => {
+    const fileMetadata = {
+      'name': 'Certificados',
+      'mimeType': 'application/vnd.google-apps.folder'
+    };
+    
+    gapi.client.drive.files.create({
+      resource: fileMetadata,
+      fields: 'id',
+      access_token: gdriveToken
+    }).then(response => {
+      const folderId = response.result.id;
+      console.log("✅ Carpeta Certificados creada");
+      resolve(folderId);
+    }).catch(err => {
+      console.error("Error al crear carpeta:", err);
+      reject(err);
+    });
+  });
+}
+
+// ── SUBIR ARCHIVO A GOOGLE DRIVE ───────────────────────────────────
+async function subirArchivoADrive(archivo, nombreArchivo, carpetaPadreId) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+      try {
+        const base64String = e.target.result.split(',')[1];
+        
+        const fileMetadata = {
+          'name': nombreArchivo,
+          'parents': [carpetaPadreId]
+        };
+        
+        const multipartBody =
+          '--314159265\r\n' +
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+          JSON.stringify(fileMetadata) + '\r\n' +
+          '--314159265\r\n' +
+          'Content-Type: ' + archivo.type + '\r\n' +
+          'Content-Transfer-Encoding: base64\r\n\r\n' +
+          base64String + '\r\n' +
+          '--314159265--';
+        
+        const xhr = new XMLHttpRequest();
+        xhr.withCredentials = true;
+        
+        xhr.addEventListener('readystatechange', function() {
+          if (this.readyState === 4) {
+            try {
+              const response = JSON.parse(this.responseText);
+              if (response.id) {
+                console.log("✅ Archivo subido a Drive:", response.id);
+                resolve(response.id);
+              } else {
+                reject(new Error("No se obtuvo ID del archivo"));
+              }
+            } catch (err) {
+              reject(err);
+            }
+          }
+        });
+        
+        xhr.onerror = function() {
+          reject(new Error("Error en la carga del archivo"));
+        };
+        
+        xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&access_token=' + gdriveToken);
+        xhr.setRequestHeader('Content-Type', 'multipart/related; boundary="314159265"');
+        xhr.send(multipartBody);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    
+    reader.onerror = () => reject(new Error("Error al leer archivo"));
+    reader.readAsDataURL(archivo);
+  });
+}
+
+// ── OBTENER URL DE DESCARGA DE GOOGLE DRIVE ────────────────────────
+async function obtenerURLDescarga(archivoId) {
+  return new Promise((resolve, reject) => {
+    gapi.client.drive.files.get({
+      'fileId': archivoId,
+      'fields': 'webContentLink',
+      'access_token': gdriveToken
+    }).then(response => {
+      const file = response.result;
+      const downloadUrl = file.webContentLink;
+      console.log("✅ URL de descarga obtenida");
+      resolve(downloadUrl);
+    }).catch(err => {
+      console.error("Error al obtener URL:", err);
+      reject(err);
+    });
+  });
+}
+
+// ── GUARDAR JUSTIFICACIÓN DE FALTA CON GOOGLE DRIVE ────────────────
+async function guardarJustificacionFalta(cursoId, alumno) {
+  const fechaDesde = document.getElementById("fecha-falta-desde").value;
+  const fechaHasta = document.getElementById("fecha-falta-hasta").value;
+  const motivo = document.getElementById("motivo-falta").value.trim();
+  const archivo = document.getElementById("archivo-certificado").files[0];
+  
+  // Validaciones
+  if (!fechaDesde) {
+    alert("❌ Por favor selecciona la fecha desde");
+    return;
+  }
+  
+  if (fechaHasta && fechaHasta < fechaDesde) {
+    alert("❌ La fecha hasta no puede ser anterior a la fecha desde");
+    return;
+  }
+  
+  if (!motivo) {
+    alert("❌ Por favor ingresa el motivo de justificación");
+    return;
+  }
+  
+  if (archivo && archivo.size > 50 * 1024 * 1024) {
+    alert("❌ El archivo no puede ser mayor a 50MB");
+    return;
+  }
+  
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const fechaKey = fechaHasta || fechaDesde;
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fechaKey);
+  
+  // Si hay archivo, subir a Google Drive
+  if (archivo) {
+    try {
+      // Verificar que Google Drive está autenticado
+      if (!gdriveToken) {
+        alert("⏳ Autenticando con Google Drive...");
+        // Usar función existente de autenticación
+        autenticarDrive("certificados");
+        // Esperar a que se complete la autenticación
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        if (!gdriveToken) {
+          alert("❌ No se pudo autenticar con Google Drive");
+          return;
+        }
+      }
+      
+      alert("⏳ Preparando carpeta de certificados...");
+      
+      // Obtener o crear carpeta Certificados
+      const carpetaId = await obtenerCarpetaCertificados();
+      
+      alert("⏳ Subiendo archivo a Google Drive...");
+      
+      // Subir archivo a Drive
+      const nombreArchivo = `${alumno}_${fechaKey}_${archivo.name}`;
+      const archivoId = await subirArchivoADrive(archivo, nombreArchivo, carpetaId);
+      
+      // Obtener URL de descarga
+      const urlDescarga = await obtenerURLDescarga(archivoId);
+      
+      // Guardar metadata en Database
+      const justificacion = {
+        fechaDesde: fechaDesde,
+        fechaHasta: fechaHasta || null,
+        motivo: motivo,
+        guardado: new Date().toISOString(),
+        tieneArchivo: true,
+        nombreArchivo: archivo.name,
+        tipoArchivo: archivo.type,
+        tamanioArchivo: archivo.size,
+        urlDescarga: urlDescarga,
+        driveFileId: archivoId
+      };
+      
+      await db.ref(path).set(justificacion);
+      
+      alert("✅ Justificación guardada correctamente\n📎 Archivo: " + archivo.name);
+      
+      // Limpiar campos
+      document.getElementById("fecha-falta-desde").value = "";
+      document.getElementById("fecha-falta-hasta").value = "";
+      document.getElementById("motivo-falta").value = "";
+      document.getElementById("archivo-certificado").value = "";
+      document.getElementById("nombre-archivo").style.display = "none";
+      document.getElementById("nombre-archivo").textContent = "";
+      
+      // Recargar lista
+      cargarFaltasJustificadas(cid, alumno);
+      
+    } catch (err) {
+      console.error("Error:", err);
+      alert("❌ Error al guardar: " + err.message);
+    }
+    
+  } else {
+    // Sin archivo
+    const justificacion = {
+      fechaDesde: fechaDesde,
+      fechaHasta: fechaHasta || null,
+      motivo: motivo,
+      guardado: new Date().toISOString(),
+      tieneArchivo: false
+    };
+    
+    db.ref(path).set(justificacion).then(() => {
+      alert("✅ Justificación guardada correctamente");
+      
+      // Limpiar campos
+      document.getElementById("fecha-falta-desde").value = "";
+      document.getElementById("fecha-falta-hasta").value = "";
+      document.getElementById("motivo-falta").value = "";
+      document.getElementById("archivo-certificado").value = "";
+      document.getElementById("nombre-archivo").style.display = "none";
+      document.getElementById("nombre-archivo").textContent = "";
+      
+      // Recargar lista
+      cargarFaltasJustificadas(cid, alumno);
+    }).catch(err => {
+      alert("❌ Error al guardar: " + err.message);
+    });
+  }
+}
+
+// ── DESCARGAR DESDE GOOGLE DRIVE ──────────────────────────────────
+function descargarArchivo(nombreArchivo, urlDescarga) {
+  console.log("Abriendo descarga:", nombreArchivo);
+  
+  if (!urlDescarga) {
+    alert("❌ El archivo no está disponible");
+    return;
+  }
+  
+  try {
+    // Abrir en nueva ventana (Drive maneja la descarga)
+    window.open(urlDescarga, '_blank');
+    console.log("✅ Descarga iniciada");
+  } catch (err) {
+    console.error("Error:", err);
+    alert("❌ Error al descargar: " + err.message);
+  }
+}
+
+// ── MOSTRAR NOMBRE DE ARCHIVO ───────────────────────────────────────
+function mostrarNombreArchivo(input) {
+  const nombreDiv = document.getElementById("nombre-archivo");
+  if (input.files.length > 0) {
+    const archivo = input.files[0];
+    const tamanio = (archivo.size / 1024).toFixed(2);
+    nombreDiv.textContent = "✅ " + archivo.name + " (" + tamanio + "KB)";
+    nombreDiv.style.display = "block";
+  } else {
+    nombreDiv.style.display = "none";
+  }
+}
+
+// ── TOGGLE FALTAS JUSTIFICADAS ─────────────────────────────────────
+function toggleFaltasJustificadas(cursoId, alumno) {
+  const lista = document.getElementById("faltas-justificadas-list");
+  const btn = document.getElementById("btn-faltas-justificadas");
+  const flecha = document.getElementById("flecha-faltas");
+  
+  if (lista.style.display === "none") {
+    lista.style.display = "block";
+    flecha.style.transform = "rotate(180deg)";
+    cargarFaltasJustificadas(cursoId, alumno);
+  } else {
+    lista.style.display = "none";
+    flecha.style.transform = "rotate(0deg)";
+  }
+}
+
+// ── CARGAR FALTAS JUSTIFICADAS ──────────────────────────────────────
+async function cargarFaltasJustificadas(cursoId, alumno) {
+  const cid = cursoId.replace(/[°\s]/g, "_");
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones");
+  
+  try {
+    const snap = await db.ref(path).once("value");
+    const justificaciones = snap.val() || {};
+    const lista = document.getElementById("faltas-justificadas-list");
+    
+    if (Object.keys(justificaciones).length === 0) {
+      lista.innerHTML = '<div style="padding: 12px; color: #94a3b8; text-align: center; font-size: 12px;">No hay faltas justificadas</div>';
+      return;
+    }
+    
+    let html = '';
+    for (const [fecha, datos] of Object.entries(justificaciones)) {
+      const fechaDesde = datos.fechaDesde || fecha;
+      const fechaHasta = datos.fechaHasta ? ` - ${datos.fechaHasta}` : '';
+      const icono = datos.tieneArchivo ? '📎' : '📅';
+      
+      let botonArchivo = '';
+      if (datos.tieneArchivo && datos.nombreArchivo && datos.urlDescarga) {
+        const nombreSafe = datos.nombreArchivo.replace(/'/g, "\\'");
+        const urlSafe = datos.urlDescarga.replace(/'/g, "\\'");
+        
+        botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${urlSafe}')" style="
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          border: none;
+          border-radius: 3px;
+          padding: 4px 8px;
+          font-size: 10px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 1px 4px rgba(16, 185, 129, 0.3);
+          margin-right: 4px;
+        " onmouseover="this.style.boxShadow='0 2px 8px rgba(16, 185, 129, 0.5)'; this.style.transform='scale(1.05)';" onmouseout="this.style.boxShadow='0 1px 4px rgba(16, 185, 129, 0.3)'; this.style.transform='scale(1)';">
+          📥 Ver/Descargar
+        </button>`;
+      }
+      
+      html += `
+        <div style="border-bottom: 1px solid #64748b; padding: 10px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a';" onmouseout="this.style.background='transparent';">
+          <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px;" onclick="toggleMotivo(this)">
+            <span style="color: #93c5fd; font-weight: 500; font-size: 12px;">${icono} ${fechaDesde}${fechaHasta}</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span style="color: #64748b; font-size: 10px; transition: transform 0.2s;">▶</span>
+              <button onclick="event.stopPropagation(); eliminarJustificacion('${cid}', '${alumno}', '${fecha}')" style="
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 4px 8px;
+                font-size: 10px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+                box-shadow: 0 1px 4px rgba(239, 68, 68, 0.3);
+              " onmouseover="this.style.boxShadow='0 2px 8px rgba(239, 68, 68, 0.5)'; this.style.transform='scale(1.05)';" onmouseout="this.style.boxShadow='0 1px 4px rgba(239, 68, 68, 0.3)'; this.style.transform='scale(1)';">
+                🗑️ Eliminar
+              </button>
+            </div>
+          </div>
+          <div style="display: none; padding: 8px 0; border-top: 1px solid #64748b; color: #e2e8f0; font-size: 11px; line-height: 1.4;">
+            <div style="margin-bottom: 6px;"><strong>Motivo:</strong> ${datos.motivo}</div>
+            ${datos.tieneArchivo ? '<div style="margin-bottom: 6px; padding: 6px; background: rgba(16, 185, 129, 0.1); border-radius: 4px;">' + botonArchivo + '<span style="color: #10b981;">📎 ' + (datos.nombreArchivo || 'archivo.pdf') + '</span></div>' : ''}
+          </div>
+        </div>
+      `;
+    }
+    lista.innerHTML = html;
+  } catch (err) {
+    const lista = document.getElementById("faltas-justificadas-list");
+    lista.innerHTML = '<div style="padding: 12px; color: #ef4444; text-align: center; font-size: 12px;">Error al cargar faltas</div>';
+  }
+}
+
+// ── TOGGLE MOTIVO (mostrar/ocultar) ────────────────────────────────
+function toggleMotivo(element) {
+  const motivo = element.querySelector('[style*="display: none"]') || element.querySelector('div:last-child');
+  const flecha = element.querySelector('span:first-child');
+  
+  if (motivo && (motivo.style.display === "none" || !motivo.style.display)) {
+    motivo.style.display = "block";
+    if (flecha) flecha.style.transform = "rotate(90deg)";
+  } else {
+    if (motivo) motivo.style.display = "none";
+    if (flecha) flecha.style.transform = "rotate(0deg)";
+  }
+}
+
+// ── ELIMINAR JUSTIFICACIÓN ──────────────────────────────────────────
+function eliminarJustificacion(cursoId, alumno, fecha) {
+  if (!confirm(`¿Estás seguro de que deseas eliminar la justificación del ${fecha}?`)) {
+    return;
+  }
+  
+  const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
+  const path = dbPath(currentData.id, "cursos", cursoId, "estudiantes", alumnoId, "justificaciones", fecha);
+  
+  db.ref(path).remove().then(() => {
+    alert("✅ Justificación eliminada correctamente");
+    cargarFaltasJustificadas(cursoId.replace(/_/g, "° "), alumno);
+  }).catch(err => {
+    alert("❌ Error al eliminar: " + err.message);
+  });
 }
