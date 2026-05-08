@@ -2152,20 +2152,43 @@ function guardarJustificacionFalta(cursoId, alumno) {
 
 // ── DESCARGAR/VER ARCHIVO ──────────────────────────────────────────
 function descargarArchivo(nombreArchivo, base64) {
-  if (!base64 || base64 === 'undefined') {
-    alert("❌ El archivo no está disponible");
+  console.log("Descargando archivo:", nombreArchivo);
+  
+  if (!base64 || base64 === 'undefined' || base64.length === 0) {
+    alert("❌ El archivo no está disponible o está vacío");
     return;
   }
   
   try {
+    // Si no comienza con data:, agregarlo
+    let dataUrl = base64;
+    if (!base64.startsWith('data:')) {
+      // Intentar detectar el tipo
+      const ext = nombreArchivo.split('.').pop().toLowerCase();
+      let mimeType = 'application/octet-stream';
+      if (ext === 'pdf') mimeType = 'application/pdf';
+      else if (ext === 'png') mimeType = 'image/png';
+      else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+      
+      dataUrl = `data:${mimeType};base64,${base64}`;
+    }
+    
     // Crear elemento link para descargar
     const link = document.createElement('a');
-    link.href = base64;
+    link.href = dataUrl;
     link.download = nombreArchivo;
+    link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    
+    // Limpiar
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
+    
+    console.log("Archivo descargado exitosamente");
   } catch (err) {
+    console.error("Error al descargar:", err);
     alert("❌ Error al descargar: " + err.message);
   }
 }
@@ -2220,21 +2243,27 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
       const fechaDesde = datos.fechaDesde || fecha;
       const fechaHasta = datos.fechaHasta ? ` - ${datos.fechaHasta}` : '';
       const icono = datos.tieneArchivo ? '📎' : '📅';
-      const botonArchivo = datos.tieneArchivo ? `<button onclick="event.stopPropagation(); descargarArchivo('${datos.nombreArchivo}', '${datos.archivoBase64}')" style="
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
-        border: none;
-        border-radius: 3px;
-        padding: 4px 8px;
-        font-size: 10px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        box-shadow: 0 1px 4px rgba(16, 185, 129, 0.3);
-        margin-right: 4px;
-      " onmouseover="this.style.boxShadow='0 2px 8px rgba(16, 185, 129, 0.5)'; this.style.transform='scale(1.05)';" onmouseout="this.style.boxShadow='0 1px 4px rgba(16, 185, 129, 0.3)'; this.style.transform='scale(1)';">
-        📥 Ver/Descargar
-      </button>` : '';
+      
+      let botonArchivo = '';
+      if (datos.tieneArchivo && datos.archivoBase64) {
+        const nombreSafe = datos.nombreArchivo.replace(/'/g, "\\'");
+        const base64Safe = datos.archivoBase64;
+        botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${base64Safe}')" style="
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: white;
+          border: none;
+          border-radius: 3px;
+          padding: 4px 8px;
+          font-size: 10px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 1px 4px rgba(16, 185, 129, 0.3);
+          margin-right: 4px;
+        " onmouseover="this.style.boxShadow='0 2px 8px rgba(16, 185, 129, 0.5)'; this.style.transform='scale(1.05)';" onmouseout="this.style.boxShadow='0 1px 4px rgba(16, 185, 129, 0.3)'; this.style.transform='scale(1)';">
+          📥 Ver/Descargar
+        </button>`;
+      }
       
       html += `
         <div style="border-bottom: 1px solid #64748b; padding: 10px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a';" onmouseout="this.style.background='transparent';">
@@ -2260,7 +2289,7 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
           </div>
           <div style="display: none; padding: 8px 0; border-top: 1px solid #64748b; color: #e2e8f0; font-size: 11px; line-height: 1.4;">
             <div style="margin-bottom: 6px;"><strong>Motivo:</strong> ${datos.motivo}</div>
-            ${datos.tieneArchivo ? '<div style="margin-bottom: 6px; padding: 6px; background: rgba(16, 185, 129, 0.1); border-radius: 4px;">' + botonArchivo + '<span style="color: #10b981;">📎 ' + datos.nombreArchivo + '</span></div>' : ''}
+            ${datos.tieneArchivo ? '<div style="margin-bottom: 6px; padding: 6px; background: rgba(16, 185, 129, 0.1); border-radius: 4px;">' + botonArchivo + '<span style="color: #10b981;">📎 ' + (datos.nombreArchivo || 'archivo.pdf') + '</span></div>' : ''}
           </div>
         </div>
       `;
