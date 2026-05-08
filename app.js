@@ -7,6 +7,10 @@ const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const YEAR      = 2026;
 
+// ── CONFIGURACIÓN GOOGLE DRIVE PARA CERTIFICADOS ──────────────
+// Reutilizar el token existente de gdriveToken (usado para Excel backup)
+let certificadosFolderId = null;
+
 // ── Helpers ───────────────────────────────────────────────
 function getFechaHoy() {
   const now = new Date();
@@ -2051,20 +2055,156 @@ function volverAEstudiantes() {
   renderPreceptorPanel();
 }
 
-// ── GUARDAR JUSTIFICACIÓN DE FALTA ──────────────────────────────────
-function guardarJustificacionFalta(cursoId, alumno) {
+// ── USAR AUTENTICACIÓN EXISTENTE DE GOOGLE DRIVE ────────────────
+// Las funciones obtenerCarpetaCertificados, etc. usan gdriveToken existente
+
+// ── OBTENER O CREAR CARPETA "CERTIFICADOS" EN GOOGLE DRIVE ──────────
+async function obtenerCarpetaCertificados() {
+  if (certificadosFolderId) {
+    return certificadosFolderId;
+  }
+  
+  return new Promise((resolve, reject) => {
+    gapi.client.drive.files.list({
+      'q': "name='Certificados' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      'spaces': 'drive',
+      'pageSize': 1,
+      'fields': 'files(id, name)',
+      'access_token': gdriveToken
+    }).then(response => {
+      const files = response.result.files;
+      
+      if (files && files.length > 0) {
+        certificadosFolderId = files[0].id;
+        console.log("✅ Carpeta Certificados encontrada");
+        resolve(certificadosFolderId);
+      } else {
+        crearCarpetaCertificados().then(id => {
+          certificadosFolderId = id;
+          resolve(id);
+        }).catch(reject);
+      }
+    }).catch(err => {
+      console.error("Error al buscar carpeta:", err);
+      reject(err);
+    });
+  });
+}
+
+function crearCarpetaCertificados() {
+  return new Promise((resolve, reject) => {
+    const fileMetadata = {
+      'name': 'Certificados',
+      'mimeType': 'application/vnd.google-apps.folder'
+    };
+    
+    gapi.client.drive.files.create({
+      resource: fileMetadata,
+      fields: 'id',
+      access_token: gdriveToken
+    }).then(response => {
+      const folderId = response.result.id;
+      console.log("✅ Carpeta Certificados creada");
+      resolve(folderId);
+    }).catch(err => {
+      console.error("Error al crear carpeta:", err);
+      reject(err);
+    });
+  });
+}
+
+// ── SUBIR ARCHIVO A GOOGLE DRIVE ───────────────────────────────────
+async function subirArchivoADrive(archivo, nombreArchivo, carpetaPadreId) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+      try {
+        const base64String = e.target.result.split(',')[1];
+        
+        const fileMetadata = {
+          'name': nombreArchivo,
+          'parents': [carpetaPadreId]
+        };
+        
+        const multipartBody =
+          '--314159265\r\n' +
+          'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+          JSON.stringify(fileMetadata) + '\r\n' +
+          '--314159265\r\n' +
+          'Content-Type: ' + archivo.type + '\r\n' +
+          'Content-Transfer-Encoding: base64\r\n\r\n' +
+          base64String + '\r\n' +
+          '--314159265--';
+        
+        const xhr = new XMLHttpRequest();
+        xhr.withCredentials = true;
+        
+        xhr.addEventListener('readystatechange', function() {
+          if (this.readyState === 4) {
+            try {
+              const response = JSON.parse(this.responseText);
+              if (response.id) {
+                console.log("✅ Archivo subido a Drive:", response.id);
+                resolve(response.id);
+              } else {
+                reject(new Error("No se obtuvo ID del archivo"));
+              }
+            } catch (err) {
+              reject(err);
+            }
+          }
+        });
+        
+        xhr.onerror = function() {
+          reject(new Error("Error en la carga del archivo"));
+        };
+        
+        xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&access_token=' + gdriveToken);
+        xhr.setRequestHeader('Content-Type', 'multipart/related; boundary="314159265"');
+        xhr.send(multipartBody);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    
+    reader.onerror = () => reject(new Error("Error al leer archivo"));
+    reader.readAsDataURL(archivo);
+  });
+}
+
+// ── OBTENER URL DE DESCARGA DE GOOGLE DRIVE ────────────────────────
+async function obtenerURLDescarga(archivoId) {
+  return new Promise((resolve, reject) => {
+    gapi.client.drive.files.get({
+      'fileId': archivoId,
+      'fields': 'webContentLink',
+      'access_token': gdriveToken
+    }).then(response => {
+      const file = response.result;
+      const downloadUrl = file.webContentLink;
+      console.log("✅ URL de descarga obtenida");
+      resolve(downloadUrl);
+    }).catch(err => {
+      console.error("Error al obtener URL:", err);
+      reject(err);
+    });
+  });
+}
+
+// ── GUARDAR JUSTIFICACIÓN DE FALTA CON GOOGLE DRIVE ────────────────
+async function guardarJustificacionFalta(cursoId, alumno) {
   const fechaDesde = document.getElementById("fecha-falta-desde").value;
   const fechaHasta = document.getElementById("fecha-falta-hasta").value;
   const motivo = document.getElementById("motivo-falta").value.trim();
   const archivo = document.getElementById("archivo-certificado").files[0];
   
-  // Validación: al menos fecha desde debe estar completa
+  // Validaciones
   if (!fechaDesde) {
     alert("❌ Por favor selecciona la fecha desde");
     return;
   }
   
-  // Si hay fecha hasta, verificar que sea igual o posterior a fecha desde
   if (fechaHasta && fechaHasta < fechaDesde) {
     alert("❌ La fecha hasta no puede ser anterior a la fecha desde");
     return;
@@ -2075,9 +2215,8 @@ function guardarJustificacionFalta(cursoId, alumno) {
     return;
   }
   
-  // Si hay archivo, verificar tamaño (máx 5MB)
-  if (archivo && archivo.size > 5 * 1024 * 1024) {
-    alert("❌ El archivo no puede ser mayor a 5MB");
+  if (archivo && archivo.size > 50 * 1024 * 1024) {
+    alert("❌ El archivo no puede ser mayor a 50MB");
     return;
   }
   
@@ -2086,15 +2225,38 @@ function guardarJustificacionFalta(cursoId, alumno) {
   const fechaKey = fechaHasta || fechaDesde;
   const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fechaKey);
   
-  // Si hay archivo, convertir a Base64
+  // Si hay archivo, subir a Google Drive
   if (archivo) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const base64 = e.target.result;
+    try {
+      // Verificar que Google Drive está autenticado
+      if (!gdriveToken) {
+        alert("⏳ Autenticando con Google Drive...");
+        // Usar función existente de autenticación
+        autenticarDrive("certificados");
+        // Esperar a que se complete la autenticación
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        if (!gdriveToken) {
+          alert("❌ No se pudo autenticar con Google Drive");
+          return;
+        }
+      }
       
-      // Guardar en window (accesible globalmente)
-      window[`archivo_${fechaKey}`] = base64;
+      alert("⏳ Preparando carpeta de certificados...");
       
+      // Obtener o crear carpeta Certificados
+      const carpetaId = await obtenerCarpetaCertificados();
+      
+      alert("⏳ Subiendo archivo a Google Drive...");
+      
+      // Subir archivo a Drive
+      const nombreArchivo = `${alumno}_${fechaKey}_${archivo.name}`;
+      const archivoId = await subirArchivoADrive(archivo, nombreArchivo, carpetaId);
+      
+      // Obtener URL de descarga
+      const urlDescarga = await obtenerURLDescarga(archivoId);
+      
+      // Guardar metadata en Database
       const justificacion = {
         fechaDesde: fechaDesde,
         fechaHasta: fechaHasta || null,
@@ -2104,27 +2266,30 @@ function guardarJustificacionFalta(cursoId, alumno) {
         nombreArchivo: archivo.name,
         tipoArchivo: archivo.type,
         tamanioArchivo: archivo.size,
-        archivoBase64: base64
+        urlDescarga: urlDescarga,
+        driveFileId: archivoId
       };
       
-      db.ref(path).set(justificacion).then(() => {
-        alert("✅ Justificación guardada correctamente\n📎 Archivo: " + archivo.name);
-        
-        // Limpiar campos
-        document.getElementById("fecha-falta-desde").value = "";
-        document.getElementById("fecha-falta-hasta").value = "";
-        document.getElementById("motivo-falta").value = "";
-        document.getElementById("archivo-certificado").value = "";
-        document.getElementById("nombre-archivo").style.display = "none";
-        document.getElementById("nombre-archivo").textContent = "";
-        
-        // Recargar lista
-        cargarFaltasJustificadas(cid, alumno);
-      }).catch(err => {
-        alert("❌ Error al guardar: " + err.message);
-      });
-    };
-    reader.readAsDataURL(archivo);
+      await db.ref(path).set(justificacion);
+      
+      alert("✅ Justificación guardada correctamente\n📎 Archivo: " + archivo.name);
+      
+      // Limpiar campos
+      document.getElementById("fecha-falta-desde").value = "";
+      document.getElementById("fecha-falta-hasta").value = "";
+      document.getElementById("motivo-falta").value = "";
+      document.getElementById("archivo-certificado").value = "";
+      document.getElementById("nombre-archivo").style.display = "none";
+      document.getElementById("nombre-archivo").textContent = "";
+      
+      // Recargar lista
+      cargarFaltasJustificadas(cid, alumno);
+      
+    } catch (err) {
+      console.error("Error:", err);
+      alert("❌ Error al guardar: " + err.message);
+    }
+    
   } else {
     // Sin archivo
     const justificacion = {
@@ -2154,46 +2319,21 @@ function guardarJustificacionFalta(cursoId, alumno) {
   }
 }
 
-// ── DESCARGAR/VER ARCHIVO ──────────────────────────────────────────
-function descargarArchivo(nombreArchivo, archivoKey) {
-  console.log("Descargando archivo:", nombreArchivo, "clave:", archivoKey);
+// ── DESCARGAR DESDE GOOGLE DRIVE ──────────────────────────────────
+function descargarArchivo(nombreArchivo, urlDescarga) {
+  console.log("Abriendo descarga:", nombreArchivo);
+  
+  if (!urlDescarga) {
+    alert("❌ El archivo no está disponible");
+    return;
+  }
   
   try {
-    // Intentar obtener del window global primero
-    let base64 = window[archivoKey];
-    
-    if (!base64 || base64 === 'undefined' || base64.length === 0) {
-      alert("⚠️ El archivo no está disponible actualmente.\n\nInténtalo de nuevo o recarga la página.");
-      return;
-    }
-    
-    // Si no comienza con data:, agregarlo
-    let dataUrl = base64;
-    if (!base64.startsWith('data:')) {
-      const ext = nombreArchivo.split('.').pop().toLowerCase();
-      let mimeType = 'application/octet-stream';
-      if (ext === 'pdf') mimeType = 'application/pdf';
-      else if (ext === 'png') mimeType = 'image/png';
-      else if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-      
-      dataUrl = `data:${mimeType};base64,${base64.split(',')[1] || base64}`;
-    }
-    
-    // Crear elemento link para descargar
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = nombreArchivo;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    
-    setTimeout(() => {
-      document.body.removeChild(link);
-    }, 100);
-    
-    console.log("✅ Archivo descargado exitosamente");
+    // Abrir en nueva ventana (Drive maneja la descarga)
+    window.open(urlDescarga, '_blank');
+    console.log("✅ Descarga iniciada");
   } catch (err) {
-    console.error("Error al descargar:", err);
+    console.error("Error:", err);
     alert("❌ Error al descargar: " + err.message);
   }
 }
@@ -2250,14 +2390,11 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
       const icono = datos.tieneArchivo ? '📎' : '📅';
       
       let botonArchivo = '';
-      if (datos.tieneArchivo && datos.nombreArchivo && datos.archivoBase64) {
+      if (datos.tieneArchivo && datos.nombreArchivo && datos.urlDescarga) {
         const nombreSafe = datos.nombreArchivo.replace(/'/g, "\\'");
-        const archivoKey = `archivo_${fecha}`;
+        const urlSafe = datos.urlDescarga.replace(/'/g, "\\'");
         
-        // Guardar en window para acceso
-        window[archivoKey] = datos.archivoBase64;
-        
-        botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${archivoKey}')" style="
+        botonArchivo = `<button onclick="event.stopPropagation(); descargarArchivo('${nombreSafe}', '${urlSafe}')" style="
           background: linear-gradient(135deg, #10b981 0%, #059669 100%);
           color: white;
           border: none;
