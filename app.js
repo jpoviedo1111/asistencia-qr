@@ -1649,28 +1649,28 @@ async function renderEstudiantesGrid(cursoId) {
     html += `
       <div class="estudiante-card" data-nombre="${alumno.toLowerCase()}" onclick="irAlPerfilEstudiante('${alumno}', '${cid}')" style="
         background: var(--color-background-primary);
-        border: 1.5px solid var(--color-border-secondary);
-        border-radius: var(--border-radius-lg);
-        padding: 12px;
+        border: 2px solid var(--color-border-secondary);
+        border-radius: 12px;
+        padding: 14px;
         cursor: pointer;
-        transition: all 0.2s;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      " onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.transform='translateY(0)';">
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      " onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.25)'; this.style.transform='translateY(-4px)';" onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)'; this.style.transform='translateY(0)';">
         
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-          <div style="width: 40px; height: 40px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: white; flex-shrink: 0;">${iniciales}</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: ${colorAvatar}; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: white; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.15);">${iniciales}</div>
           <div style="min-width: 0; flex: 1;">
-            <p style="margin: 0; font-size: 13px; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${alumno}</p>
+            <p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${alumno}</p>
           </div>
         </div>
         
-        <div style="padding: 8px 0; border-top: 1.5px solid var(--color-border-secondary); font-size: 12px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: var(--color-text-secondary);">Asistencia</span>
-            <span style="color: ${estadoAsistencia.color}; font-weight: 500;">${estadoAsistencia.porcentaje}%</span>
+        <div style="padding: 10px 0; border-top: 1px solid var(--color-border-tertiary); font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--color-text-secondary); font-weight: 500;">Asistencia</span>
+            <span style="color: ${estadoAsistencia.color}; font-weight: 700;">${estadoAsistencia.porcentaje}%</span>
           </div>
-          <div style="width: 100%; height: 4px; background: var(--color-background-secondary); border-radius: 2px; overflow: hidden;">
-            <div style="height: 100%; background: ${estadoAsistencia.color}; width: ${estadoAsistencia.porcentaje}%;"></div>
+          <div style="width: 100%; height: 6px; background: var(--color-background-secondary); border-radius: 3px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);">
+            <div style="height: 100%; background: ${estadoAsistencia.color}; width: ${estadoAsistencia.porcentaje}%; border-radius: 3px; transition: width 0.3s ease;"></div>
           </div>
         </div>
       </div>
