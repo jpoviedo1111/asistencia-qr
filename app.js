@@ -1747,9 +1747,7 @@ function irAlPerfilEstudiante(alumno, cursoId) {
 const PERIODOS = {
   "1er_cuatrimestre": { nombre: "1er Cuatrimestre", icono: "📚" },
   "2do_cuatrimestre": { nombre: "2do Cuatrimestre", icono: "📚" },
-  "3er_cuatrimestre": { nombre: "3er Cuatrimestre", icono: "📚" },
-  "diciembre": { nombre: "Diciembre", icono: "🎄" },
-  "febrero": { nombre: "Febrero", icono: "☀️" }
+  "3er_cuatrimestre": { nombre: "3er Cuatrimestre", icono: "📚" }
 };
 
 // ── RENDERIZAR PERFIL DEL ESTUDIANTE ─────────────────────────────────
@@ -1765,27 +1763,28 @@ async function renderPerfilEstudiante(alumno, cursoId) {
     const notasArea = registroAcademico[areaId] || {};
     
     htmlAsignaturas += `
-      <div class="card" style="margin-bottom: 1rem; border: 1.5px solid var(--color-border-secondary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); background: var(--color-background-primary);">
-        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--color-text-primary);">${area.nombre}</h4>
+      <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #64748b; box-shadow: 0 2px 8px rgba(0,0,0,0.5); background: #1e293b; padding: 14px; border-radius: 8px;">
+        <h4 style="margin: 0 0 14px; font-size: 15px; font-weight: 700; color: #e2e8f0;">${area.nombre}</h4>
         
-        <!-- Selector de Cuatrimestre con mejor visualización -->
+        <!-- Selector de Cuatrimestre con colores forzados -->
         <div style="margin-bottom: 12px;">
           <select id="select-periodo-${areaId}" class="form-select" style="
             width: 100%; 
-            padding: 10px; 
-            border: 1.5px solid var(--color-border-secondary); 
+            padding: 12px; 
+            border: 2px solid #64748b; 
             border-radius: 6px; 
-            background: var(--color-background-primary);
-            color: var(--color-text-primary);
-            font-weight: 500;
-            font-size: 13px;
+            background: #0f172a !important;
+            color: #e2e8f0 !important;
+            font-weight: 700;
+            font-size: 14px;
             cursor: pointer;
             transition: all 0.2s;
-          " onchange="cambiarPeriodo('${areaId}', this.value)" onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.15)';" onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">
+            box-sizing: border-box;
+          " onchange="cambiarPeriodo('${areaId}', this.value)" onmouseover="this.style.borderColor='#93c5fd'; this.style.boxShadow='0 0 8px rgba(147, 197, 253, 0.6)';" onmouseout="this.style.borderColor='#64748b'; this.style.boxShadow='none';">
     `;
     
     for (const [periodoId, periodo] of Object.entries(PERIODOS)) {
-      htmlAsignaturas += `<option value="${periodoId}">${periodo.icono} ${periodo.nombre}</option>`;
+      htmlAsignaturas += `<option value="${periodoId}" style="background: #0f172a; color: #e2e8f0;">${periodo.icono} ${periodo.nombre}</option>`;
     }
     
     htmlAsignaturas += `
@@ -1802,8 +1801,8 @@ async function renderPerfilEstudiante(alumno, cursoId) {
       const notaPrimero = notasAsig["1er_cuatrimestre"] || "";
       
       htmlAsignaturas += `
-        <div class="form-group" style="background: var(--color-background-secondary); padding: 10px; border-radius: 6px; border: 1px solid var(--color-border-tertiary);">
-          <label class="form-label" style="font-size: 12px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 6px; display: block;">${asignatura}</label>
+        <div class="form-group" style="background: #1e293b; padding: 10px; border-radius: 6px; border: 2px solid #64748b;">
+          <label class="form-label" style="font-size: 12px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; display: block;">${asignatura}</label>
           <input 
             type="number" 
             class="inp nota-input-${areaId}" 
@@ -1815,18 +1814,20 @@ async function renderPerfilEstudiante(alumno, cursoId) {
             placeholder="—" 
             onchange="guardarCalificacionConPeriodo('${cursoId}', '${alumno}', '${areaId}', this.dataset.asig, this.value, document.getElementById('select-periodo-${areaId}').value)" 
             style="
+              width: 100%;
               text-align: center; 
-              font-weight: 600; 
-              padding: 8px; 
-              border: 1.5px solid var(--color-border-secondary); 
+              font-weight: 700; 
+              padding: 10px; 
+              border: 2px solid #64748b; 
               border-radius: 4px; 
-              background: var(--color-background-primary);
-              color: var(--color-text-primary);
-              font-size: 13px;
+              background: #0f172a !important;
+              color: #e2e8f0 !important;
+              font-size: 14px;
               transition: all 0.2s;
+              box-sizing: border-box;
             " 
-            onmouseover="this.style.borderColor='var(--color-text-primary)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.15)';"
-            onmouseout="this.style.borderColor='var(--color-border-secondary)'; this.style.boxShadow='none';"
+            onmouseover="this.style.borderColor='#93c5fd'; this.style.boxShadow='0 0 8px rgba(147, 197, 253, 0.6)';"
+            onmouseout="this.style.borderColor='#64748b'; this.style.boxShadow='none';"
           />
         </div>
       `;
