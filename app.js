@@ -1993,8 +1993,6 @@ async function renderPerfilEstudiante(alumno, cursoId) {
           Guardar Justificación
         </button>
       </div>
-      
-      <div id="mensaje-falta" style="margin-top: 12px; display: none;"></div>
     </div>
   `;
   
@@ -2067,7 +2065,6 @@ function volverAEstudiantes() {
 function guardarJustificacionFalta(cursoId, alumno) {
   const fecha = document.getElementById("fecha-falta").value;
   const motivo = document.getElementById("motivo-falta").value.trim();
-  const mensajeDiv = document.getElementById("mensaje-falta");
   
   if (!fecha) {
     alert("❌ Por favor selecciona una fecha");
