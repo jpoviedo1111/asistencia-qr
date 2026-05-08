@@ -2,6 +2,14 @@
 //  APP — Panel Admin + Panel Preceptor + Vista Alumno
 // ══════════════════════════════════════════════════════════
 
+// ⚡ DEFINICIONES GLOBALES TEMPRANAS - Evitar scope issues
+// Estas se llenarán cuando se definan las funciones
+if (typeof window !== 'undefined') {
+  window.renderAdminPanel = null;
+  window.volverAlAdmin = null;
+  window.renderPreceptorPanel = null;
+}
+
 const dayNames  = ["Lu","Ma","Mi","Ju","Vi","Sa","Do"];
 const mesesNom  = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -224,11 +232,15 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
 }
 
 // ── VOLVER AL ADMIN PANEL ───────────────────────────────────
+// ── VOLVER AL ADMIN PANEL ───────────────────────────────────
 function volverAlAdmin() {
-  if (currentRole === "admin" || sessionStorage.getItem("isAdmin") === "true") {
+  // Verificar que renderAdminPanel esté definida y disponible
+  if (typeof renderAdminPanel === 'function') {
     renderAdminPanel();
   } else {
-    console.error("No tienes permisos de admin");
+    console.error("❌ renderAdminPanel no está disponible");
+    // Fallback: volver al panel anterior
+    location.reload();
   }
 }
 
@@ -303,6 +315,10 @@ function renderAdminPanel() {
   cargarListaPreceptores();
   initDarkMode();
 }
+
+// Registrar en window para asegurar disponibilidad global
+window.renderAdminPanel = renderAdminPanel;
+window.volverAlAdmin = volverAlAdmin;
 
 function cargarListaPreceptores() {
   db.ref("preceptores").once("value", snap => {
@@ -407,7 +423,7 @@ async function renderPreceptorPanel(fromAdmin = false) {
             </select>` : `<span style="font-weight:500;font-size:14px;">${cursoActivo}</span>`}
           <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
           ${fromAdmin
-            ? `<button class="btn-outline sm" onclick="volverAlAdmin()">← Admin</button>`
+            ? `<button class="btn-outline sm" onclick="if(typeof renderAdminPanel==='function'){renderAdminPanel();}else{location.reload();}">← Admin</button>`
             : `<button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>`}
         </div>
       </header>
