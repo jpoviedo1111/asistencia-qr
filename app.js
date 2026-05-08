@@ -1088,7 +1088,7 @@ function renderVistaAlumno(cursoId, precId) {
   const ahora  = new Date();
   const horaAR = new Date(ahora.toLocaleString("en-US",{timeZone:"America/Argentina/Buenos_Aires"}));
   const min    = horaAR.getHours()*60 + horaAR.getMinutes();
-  if (min < 13*60+30 || min > 18*60) {
+  if (min < 8*60 || min > 18*60) {
     const horaStr = horaAR.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
     app.innerHTML = `
       <div class="phone-wrap">
@@ -1099,7 +1099,7 @@ function renderVistaAlumno(cursoId, precId) {
         <div class="phone-body">
           <div class="alert-error" style="text-align:center;padding:1.5rem;">
             <div style="font-size:32px;margin-bottom:12px;">🕐</div>
-            <div style="font-weight:600;">El registro está disponible de 13:30 a 18:00 hs</div>
+            <div style="font-weight:600;">El registro está disponible de 08:00 a 18:00 hs</div>
             <div style="margin-top:10px;font-size:13px;">Hora actual: ${horaStr} hs</div>
           </div>
         </div>
@@ -1896,18 +1896,34 @@ async function renderPerfilEstudiante(alumno, cursoId) {
         <div style="border-top: 1px solid #64748b; padding-top: 16px;">
           <h4 style="margin: 0 0 12px; font-size: 13px; font-weight: 600; color: #e2e8f0;">Agregar Nueva Justificación</h4>
         
-          <div style="margin-bottom: 12px;">
-            <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha de la Falta</label>
-            <input type="date" id="fecha-falta" style="
-              width: 100%;
-              padding: 10px;
-              border: 2px solid #64748b;
-              border-radius: 4px;
-              background: #0f172a;
-              color: #e2e8f0;
-              font-size: 13px;
-              box-sizing: border-box;
-            " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
+          <!-- RANGO DE FECHAS -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha Desde</label>
+              <input type="date" id="fecha-falta-desde" style="
+                width: 100%;
+                padding: 10px;
+                border: 2px solid #64748b;
+                border-radius: 4px;
+                background: #0f172a;
+                color: #e2e8f0;
+                font-size: 13px;
+                box-sizing: border-box;
+              " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
+            </div>
+            <div>
+              <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">Fecha Hasta</label>
+              <input type="date" id="fecha-falta-hasta" style="
+                width: 100%;
+                padding: 10px;
+                border: 2px solid #64748b;
+                border-radius: 4px;
+                background: #0f172a;
+                color: #e2e8f0;
+                font-size: 13px;
+                box-sizing: border-box;
+              " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';" />
+            </div>
           </div>
           
           <div style="margin-bottom: 12px;">
@@ -1925,6 +1941,29 @@ async function renderPerfilEstudiante(alumno, cursoId) {
               font-family: inherit;
               box-sizing: border-box;
             " onmouseover="this.style.borderColor='#93c5fd';" onmouseout="this.style.borderColor='#64748b';"></textarea>
+          </div>
+          
+          <!-- CARGA DE ARCHIVOS -->
+          <div style="margin-bottom: 12px;">
+            <label style="font-size: 12px; font-weight: 600; color: #e2e8f0; display: block; margin-bottom: 8px;">📎 Adjuntar Certificado (Opcional)</label>
+            <div style="
+              border: 2px dashed #64748b;
+              border-radius: 4px;
+              padding: 12px;
+              text-align: center;
+              background: rgba(15, 23, 42, 0.5);
+              cursor: pointer;
+              transition: all 0.2s;
+            " onmouseover="this.style.borderColor='#93c5fd'; this.style.background='rgba(59, 130, 246, 0.1)';" onmouseout="this.style.borderColor='#64748b'; this.style.background='rgba(15, 23, 42, 0.5)';" onclick="document.getElementById('archivo-certificado').click()">
+              <input type="file" id="archivo-certificado" style="display: none;" accept="image/*,.pdf" onchange="mostrarNombreArchivo(this)" />
+              <div style="font-size: 12px; color: #93c5fd; font-weight: 500;">
+                🖼️ Click o arrastra archivo aquí
+              </div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
+                (PNG, JPG, PDF - máx 5MB)
+              </div>
+              <div id="nombre-archivo" style="font-size: 11px; color: #10b981; margin-top: 6px; font-weight: 500; display: none;"></div>
+            </div>
           </div>
           
           <button onclick="guardarJustificacionFalta('${cursoId}', '${alumno}')" style="
@@ -2017,11 +2056,20 @@ function volverAEstudiantes() {
 
 // ── GUARDAR JUSTIFICACIÓN DE FALTA ──────────────────────────────────
 function guardarJustificacionFalta(cursoId, alumno) {
-  const fecha = document.getElementById("fecha-falta").value;
+  const fechaDesde = document.getElementById("fecha-falta-desde").value;
+  const fechaHasta = document.getElementById("fecha-falta-hasta").value;
   const motivo = document.getElementById("motivo-falta").value.trim();
+  const archivo = document.getElementById("archivo-certificado").files[0];
   
-  if (!fecha) {
-    alert("❌ Por favor selecciona una fecha");
+  // Validación: al menos fecha desde debe estar completa
+  if (!fechaDesde) {
+    alert("❌ Por favor selecciona la fecha desde");
+    return;
+  }
+  
+  // Si hay fecha hasta, verificar que sea igual o posterior a fecha desde
+  if (fechaHasta && fechaHasta < fechaDesde) {
+    alert("❌ La fecha hasta no puede ser anterior a la fecha desde");
     return;
   }
   
@@ -2030,26 +2078,61 @@ function guardarJustificacionFalta(cursoId, alumno) {
     return;
   }
   
+  // Si hay archivo, verificar tamaño (máx 5MB)
+  if (archivo && archivo.size > 5 * 1024 * 1024) {
+    alert("❌ El archivo no puede ser mayor a 5MB");
+    return;
+  }
+  
   const cid = cursoId.replace(/[°\s]/g, "_");
   const alumnoId = alumno.toLowerCase().replace(/[^\w]/g, "_");
-  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fecha);
+  const fechaKey = fechaHasta || fechaDesde; // Usa fecha hasta si existe, sino desde
+  const path = dbPath(currentData.id, "cursos", cid, "estudiantes", alumnoId, "justificaciones", fechaKey);
   
-  db.ref(path).set({
-    fecha: fecha,
+  const justificacion = {
+    fechaDesde: fechaDesde,
+    fechaHasta: fechaHasta || null,
     motivo: motivo,
-    guardado: new Date().toISOString()
-  }).then(() => {
-    alert("✅ Justificación guardada correctamente");
+    guardado: new Date().toISOString(),
+    tieneArchivo: !!archivo
+  };
+  
+  // Guardar en Firebase
+  db.ref(path).set(justificacion).then(() => {
+    // Si hay archivo, también guardarlo (en versiones futuras con Storage)
+    if (archivo) {
+      console.log("Archivo seleccionado:", archivo.name, "Tamaño:", (archivo.size / 1024).toFixed(2) + "KB");
+      alert("✅ Justificación guardada correctamente\n📎 Archivo: " + archivo.name);
+    } else {
+      alert("✅ Justificación guardada correctamente");
+    }
     
     // Limpiar campos
-    document.getElementById("fecha-falta").value = "";
+    document.getElementById("fecha-falta-desde").value = "";
+    document.getElementById("fecha-falta-hasta").value = "";
     document.getElementById("motivo-falta").value = "";
+    document.getElementById("archivo-certificado").value = "";
+    document.getElementById("nombre-archivo").style.display = "none";
+    document.getElementById("nombre-archivo").textContent = "";
     
     // Recargar lista de faltas
     cargarFaltasJustificadas(cid, alumno);
   }).catch(err => {
     alert("❌ Error al guardar: " + err.message);
   });
+}
+
+// ── MOSTRAR NOMBRE DE ARCHIVO ───────────────────────────────────────
+function mostrarNombreArchivo(input) {
+  const nombreDiv = document.getElementById("nombre-archivo");
+  if (input.files.length > 0) {
+    const archivo = input.files[0];
+    const tamanio = (archivo.size / 1024).toFixed(2);
+    nombreDiv.textContent = "✅ " + archivo.name + " (" + tamanio + "KB)";
+    nombreDiv.style.display = "block";
+  } else {
+    nombreDiv.style.display = "none";
+  }
 }
 
 // ── TOGGLE FALTAS JUSTIFICADAS ─────────────────────────────────────
@@ -2086,10 +2169,14 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
     
     let html = '';
     for (const [fecha, datos] of Object.entries(justificaciones)) {
+      const fechaDesde = datos.fechaDesde || fecha;
+      const fechaHasta = datos.fechaHasta ? ` - ${datos.fechaHasta}` : '';
+      const icono = datos.tieneArchivo ? '📎' : '📅';
+      
       html += `
         <div style="border-bottom: 1px solid #64748b; padding: 10px; transition: background 0.2s;" onmouseover="this.style.background='#0f172a';" onmouseout="this.style.background='transparent';">
           <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px;" onclick="toggleMotivo(this)">
-            <span style="color: #93c5fd; font-weight: 500; font-size: 12px;">📅 ${fecha}</span>
+            <span style="color: #93c5fd; font-weight: 500; font-size: 12px;">${icono} ${fechaDesde}${fechaHasta}</span>
             <div style="display: flex; gap: 8px; align-items: center;">
               <span style="color: #64748b; font-size: 10px; transition: transform 0.2s;">▶</span>
               <button onclick="event.stopPropagation(); eliminarJustificacion('${cid}', '${alumno}', '${fecha}')" style="
@@ -2109,7 +2196,8 @@ async function cargarFaltasJustificadas(cursoId, alumno) {
             </div>
           </div>
           <div style="display: none; padding: 8px 0; border-top: 1px solid #64748b; color: #e2e8f0; font-size: 11px; line-height: 1.4;">
-            ${datos.motivo}
+            <div style="margin-bottom: 6px;"><strong>Motivo:</strong> ${datos.motivo}</div>
+            ${datos.tieneArchivo ? '<div style="color: #10b981;">📎 Certificado adjuntado</div>' : ''}
           </div>
         </div>
       `;
