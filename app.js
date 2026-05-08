@@ -2159,22 +2159,6 @@ function guardarJustificacionFalta(cursoId, alumno) {
     });
   }
 }
-      
-      // Limpiar campos
-      document.getElementById("fecha-falta-desde").value = "";
-      document.getElementById("fecha-falta-hasta").value = "";
-      document.getElementById("motivo-falta").value = "";
-      document.getElementById("archivo-certificado").value = "";
-      document.getElementById("nombre-archivo").style.display = "none";
-      document.getElementById("nombre-archivo").textContent = "";
-      
-      // Recargar lista
-      cargarFaltasJustificadas(cid, alumno);
-    }).catch(err => {
-      alert("❌ Error al guardar: " + err.message);
-    });
-  }
-}
 
 // ── DESCARGAR/VER ARCHIVO ──────────────────────────────────────────
 function descargarArchivo(nombreArchivo, archivoKey) {
