@@ -223,6 +223,15 @@ async function generarExcelBlobParaPreceptor(alumnos, fechas, presentes, cursoNo
   return new Blob([wbOut], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
 
+// ── VOLVER AL ADMIN PANEL ───────────────────────────────────
+function volverAlAdmin() {
+  if (currentRole === "admin" || sessionStorage.getItem("isAdmin") === "true") {
+    renderAdminPanel();
+  } else {
+    console.error("No tienes permisos de admin");
+  }
+}
+
 function renderAdminPanel() {
   const u = currentUser;
   document.getElementById("app").innerHTML = `
@@ -398,7 +407,7 @@ async function renderPreceptorPanel(fromAdmin = false) {
             </select>` : `<span style="font-weight:500;font-size:14px;">${cursoActivo}</span>`}
           <button class="btn-dark-mode" onclick="toggleDarkMode()" title="Modo oscuro" id="btn-dark">🌙</button>
           ${fromAdmin
-            ? `<button class="btn-outline sm" onclick="renderAdminPanel()">← Admin</button>`
+            ? `<button class="btn-outline sm" onclick="volverAlAdmin()">← Admin</button>`
             : `<button class="btn-outline sm" onclick="logout()">Cerrar sesión</button>`}
         </div>
       </header>
@@ -1756,6 +1765,12 @@ const PERIODOS = {
 
 // ── RENDERIZAR PERFIL DEL ESTUDIANTE ─────────────────────────────────
 async function renderPerfilEstudiante(alumno, cursoId) {
+  // Guardar que venimos del admin si es necesario
+  const esFromAdmin = sessionStorage.getItem("fromAdmin") === "true" || currentRole === "admin";
+  if (esFromAdmin) {
+    sessionStorage.setItem("fromAdmin", "true");
+  }
+  
   const estadoAsistencia = await obtenerEstadoAsistencia(cursoId, alumno);
   const registroAcademico = await obtenerRegistroAcademico(cursoId, alumno);
   const iniciales = alumno.split(" ").map(n => n[0]).join("").substring(0, 2);
@@ -2052,7 +2067,15 @@ function guardarCalificacion(cursoId, alumno, areaId, asigId, valor) {
 // ── VOLVER A VISTA DE ESTUDIANTES ────────────────────────────────────
 function volverAEstudiantes() {
   sessionStorage.removeItem("estudianteActual");
-  renderPreceptorPanel();
+  
+  // Verificar si venimos del admin
+  const fromAdmin = sessionStorage.getItem("fromAdmin") === "true";
+  if (fromAdmin) {
+    sessionStorage.removeItem("fromAdmin");
+    renderAdminPanel();
+  } else {
+    renderPreceptorPanel();
+  }
 }
 
 // ── USAR AUTENTICACIÓN EXISTENTE DE GOOGLE DRIVE ────────────────
