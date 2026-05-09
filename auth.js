@@ -21,6 +21,7 @@ window.addEventListener("DOMContentLoaded", function() {
    const parentCurso = new URLSearchParams(location.search).get("curso");
    if (parentCurso) {
     // Load parent view directly without login
+    cursoActualPadre = parentCurso;
     renderParentOnlinePanel();
     return;
   }
