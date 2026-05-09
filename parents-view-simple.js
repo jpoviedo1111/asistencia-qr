@@ -237,9 +237,9 @@ function generarExcelParaPadre(alumnos, presentes, nombreCurso) {
       setCell(2, d + 1, d, dayWd[d] >= 5 ? S.wkd : S.dayHdr);
     }
     
-    setCell(2, daysInMonth + 2, "P", {...S.dayHdr, fill:{fgColor:{rgb:"1A3A5C"}}});
-    setCell(2, daysInMonth + 3, "A", {...S.dayHdr, fill:{fgColor:{rgb:"1A3A5C"}}});
-    setCell(2, daysInMonth + 4, "T", {...S.dayHdr, fill:{fgColor:{rgb:"1A3A5C"}}});
+    setCell(2, daysInMonth + 2, "P", Object.assign({}, S.dayHdr, {fill:{fgColor:{rgb:"1A3A5C"}}}));
+    setCell(2, daysInMonth + 3, "A", Object.assign({}, S.dayHdr, {fill:{fgColor:{rgb:"1A3A5C"}}}));
+    setCell(2, daysInMonth + 4, "T", Object.assign({}, S.dayHdr, {fill:{fgColor:{rgb:"1A3A5C"}}}));
     
     setCell(3, 0, "", S.meta); 
     setCell(3, 1, "", S.meta);
@@ -270,12 +270,12 @@ function generarExcelParaPadre(alumnos, presentes, nombreCurso) {
         }
         
         if (!nombre) {
-          setCell(r, d + 1, "", {...base, alignment:{horizontal:"center",vertical:"center"}});
+          setCell(r, d + 1, "", Object.assign({}, base, {alignment:{horizontal:"center",vertical:"center"}}));
           continue;
         }
         
         if (!presentes[fid] || Object.keys(presentes[fid]).length === 0) {
-          setCell(r, d + 1, "", {...base, alignment:{horizontal:"center",vertical:"center"}});
+          setCell(r, d + 1, "", Object.assign({}, base, {alignment:{horizontal:"center",vertical:"center"}}));
           continue;
         }
         
@@ -325,9 +325,6 @@ function generarExcelParaPadre(alumnos, presentes, nombreCurso) {
     XLSX.utils.book_append_sheet(wb, ws, mName);
   }
   
-  const wbOut = XLSX.write(wb, {bookType:"xlsx", type:"array"});
-  const blob = new Blob([wbOut], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  
   const nombreArchivo = `Asistencia_${nombreCurso.replace(/[°\s]/g, "_")}_${YEAR}.xlsx`;
-  XLSX.writeFile(blob, nombreArchivo);
+  XLSX.writeFile(wb, nombreArchivo);
 }
