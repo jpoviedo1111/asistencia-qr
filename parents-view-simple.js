@@ -42,7 +42,7 @@ function renderParentOnlinePanel() {
 
 function loadParentOnlineView() {
   const container = document.getElementById("parent-content");
-  const cid = cursoActualPadre.replace(/[°\s]/g, "_");
+  const cid = cursoActualPadre.replace(/[°\s]/g, "_").replace(/__/g, "_");;
   const fechaHoy = getFechaHoy();
 
   container.innerHTML = "<div class=\"loading\">Cargando datos en tiempo real...</div>";
