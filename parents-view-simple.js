@@ -47,47 +47,73 @@ function loadParentOnlineView() {
 
   container.innerHTML = "<div class=\"loading\">Cargando datos en tiempo real...</div>";
 
-  // Escuchar en tiempo real SOLO hoy
-  parentListenerRef = db.ref(`preceptores/_admin/datos/cursos/${cid}/presentes/${fechaHoy}`);
+  // Intentar primero con jpoviedo01_gmail_com
+  const ruta1 = `preceptores/jpoviedo01_gmail_com/datos/cursos/${cid}/presentes/${fechaHoy}`;
+  const ruta2 = `preceptores/corradilaura_hotmail_com/datos/cursos/${cid}/presentes/${fechaHoy}`;
   
-  parentListenerRef.on("value", function(snap) {
-    const presentesHoy = snap.val() ? Object.values(snap.val()) : [];
-    
-    let html = "";
-    
-    // Card con contador
-    html += "<div class=\"card\" style=\"margin-bottom:1.5rem;\">";
-    
-    // Contador
-    html += "<div class=\"stats-grid\" style=\"margin-bottom:1rem;\">";
-    html += "<div class=\"stat-card green\">";
-    html += "<div class=\"stat-num\">" + presentesHoy.length + "</div>";
-    html += "<div class=\"stat-lbl\">Presentes ahora</div>";
-    html += "</div>";
-    html += "</div>";
-
-    // Lista de presentes
-    if (presentesHoy.length === 0) {
-      html += "<p class=\"empty-hint\" style=\"padding:1rem;text-align:center;color:#9ca3af;\">Sin presentes aún.</p>";
-    } else {
-      html += "<ul class=\"present-list\" style=\"border-top:1px solid #e5e7eb;padding-top:12px;\">";
-      presentesHoy.forEach(function(alumno) {
-        const hora = alumno.hora || "—";
-        html += "<li style=\"display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f3f4f6;\">";
-        html += "<span style=\"display:flex;align-items:center;gap:8px;font-weight:500;\">";
-        html += "<span style=\"width:8px;height:8px;border-radius:50%;background:#15803d;\"></span>";
-        html += alumno.nombre;
-        html += "</span>";
-        html += "<span class=\"badge-hora\" style=\"background:#f0fdf4;color:#15803d;\">" + hora + "</span>";
-        html += "</li>";
-      });
-      html += "</ul>";
+  buscarPresentesEnTiempoReal(ruta1, container, function(encontrado) {
+    if (!encontrado) {
+      // Si no encontró en la primera, intentar con la segunda
+      buscarPresentesEnTiempoReal(ruta2, container);
     }
+  });
+}
 
-    html += "</div>";
-    container.innerHTML = html;
-  }, function(err) {
-    container.innerHTML = "<div class=\"card\"><p style=\"color:#dc2626;padding:1rem;text-align:center;\">Error al cargar datos: " + err.message + "</p></div>";
+function buscarPresentesEnTiempoReal(ruta, container, callback) {
+  const ref = db.ref(ruta);
+  
+  // Verificar si existe primero
+  ref.once("value", function(snap) {
+    if (!snap.exists()) {
+      if (callback) callback(false);
+      return;
+    }
+    
+    if (callback) callback(true);
+    
+    // Guardar referencia para limpiar después
+    parentListenerRef = ref;
+    
+    // Escuchar cambios en tiempo real
+    ref.on("value", function(snap) {
+      const presentesHoy = snap.val() ? Object.values(snap.val()) : [];
+
+      let html = "";
+      
+      // Card con contador
+      html += "<div class=\"card\" style=\"margin-bottom:1.5rem;\">";
+      
+      // Contador
+      html += "<div class=\"stats-grid\" style=\"margin-bottom:1rem;\">";
+      html += "<div class=\"stat-card green\">";
+      html += "<div class=\"stat-num\">" + presentesHoy.length + "</div>";
+      html += "<div class=\"stat-lbl\">Presentes ahora</div>";
+      html += "</div>";
+      html += "</div>";
+
+      // Lista de presentes
+      if (presentesHoy.length === 0) {
+        html += "<p class=\"empty-hint\" style=\"padding:1rem;text-align:center;color:#9ca3af;\">Sin presentes aún.</p>";
+      } else {
+        html += "<ul class=\"present-list\" style=\"border-top:1px solid #e5e7eb;padding-top:12px;\">";
+        presentesHoy.forEach(function(alumno) {
+          const hora = alumno.hora || "—";
+          html += "<li style=\"display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f3f4f6;\">";
+          html += "<span style=\"display:flex;align-items:center;gap:8px;font-weight:500;\">";
+          html += "<span style=\"width:8px;height:8px;border-radius:50%;background:#15803d;\"></span>";
+          html += alumno.nombre;
+          html += "</span>";
+          html += "<span class=\"badge-hora\" style=\"background:#f0fdf4;color:#15803d;\">" + hora + "</span>";
+          html += "</li>";
+        });
+        html += "</ul>";
+      }
+
+      html += "</div>";
+      container.innerHTML = html;
+    }, function(err) {
+      container.innerHTML = "<div class=\"card\"><p style=\"color:#dc2626;padding:1rem;text-align:center;\">Error al cargar datos: " + err.message + "</p></div>";
+    });
   });
 }
 
@@ -116,20 +142,31 @@ window.addEventListener("beforeunload", function() {
 function descargarExcelPadre() {
   const cid = cursoActualPadre.replace(/[°\s]/g, "_");
   
-  // Cargar todos los datos del curso
-  db.ref(`preceptores/_admin/datos/cursos/${cid}`).once("value", function(snap) {
+  // Intentar con primer preceptor
+  db.ref(`preceptores/jpoviedo01_gmail_com/datos/cursos/${cid}`).once("value", function(snap) {
     const datosDelCurso = snap.val();
     
-    if (!datosDelCurso || !datosDelCurso.presentes || !datosDelCurso.alumnos) {
-      alert("No hay datos disponibles para descargar.");
+    if (datosDelCurso && datosDelCurso.presentes && datosDelCurso.alumnos) {
+      const alumnos = datosDelCurso.alumnos || {};
+      const presentes = datosDelCurso.presentes || {};
+      generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
       return;
     }
-
-    const alumnos = datosDelCurso.alumnos || {};
-    const presentes = datosDelCurso.presentes || {};
-
-    // Generar Excel
-    generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
+    
+    // Si no encontró, intentar con segundo preceptor
+    db.ref(`preceptores/corradilaura_hotmail_com/datos/cursos/${cid}`).once("value", function(snap2) {
+      const datosDelCurso2 = snap2.val();
+      
+      if (datosDelCurso2 && datosDelCurso2.presentes && datosDelCurso2.alumnos) {
+        const alumnos = datosDelCurso2.alumnos || {};
+        const presentes = datosDelCurso2.presentes || {};
+        generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
+        return;
+      }
+      
+      // Si no encontró en ninguno
+      alert("No hay datos disponibles para descargar.");
+    });
   });
 }
 
