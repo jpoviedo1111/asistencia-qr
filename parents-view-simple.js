@@ -47,7 +47,7 @@ function loadParentOnlineView() {
   container.innerHTML = "<div class=\"loading\">Buscando datos...</div>";
 
   // Buscar en ambos preceptores
-  buscarCursoEnPreceptor("jpoviedo01_gmail_com", fechaHoy, container, function(encontrado) {
+  buscarCursoEnPreceptor("jpoviedo1_gmail_com", fechaHoy, container, function(encontrado) {
     if (!encontrado) {
       buscarCursoEnPreceptor("corradilaura_hotmail_com", fechaHoy, container);
     }
