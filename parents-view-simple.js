@@ -42,48 +42,50 @@ function renderParentOnlinePanel() {
 
 function loadParentOnlineView() {
   const container = document.getElementById("parent-content");
-  const cid = cursoActualPadre.replace(/[°\s]/g, "_").replace(/__/g, "_");;
   const fechaHoy = getFechaHoy();
 
-  container.innerHTML = "<div class=\"loading\">Cargando datos en tiempo real...</div>";
+  container.innerHTML = "<div class=\"loading\">Buscando datos...</div>";
 
-  // Intentar primero con jpoviedo01_gmail_com
-  const ruta1 = `preceptores/jpoviedo01_gmail_com/datos/cursos/${cid}/presentes/${fechaHoy}`;
-  const ruta2 = `preceptores/corradilaura_hotmail_com/datos/cursos/${cid}/presentes/${fechaHoy}`;
-  
-  buscarPresentesEnTiempoReal(ruta1, container, function(encontrado) {
+  // Buscar en ambos preceptores
+  buscarCursoEnPreceptor("jpoviedo01_gmail_com", fechaHoy, container, function(encontrado) {
     if (!encontrado) {
-      // Si no encontró en la primera, intentar con la segunda
-      buscarPresentesEnTiempoReal(ruta2, container);
+      buscarCursoEnPreceptor("corradilaura_hotmail_com", fechaHoy, container);
     }
   });
 }
 
-function buscarPresentesEnTiempoReal(ruta, container, callback) {
-  const ref = db.ref(ruta);
-  
-  // Verificar si existe primero
-  ref.once("value", function(snap) {
-    if (!snap.exists()) {
+function buscarCursoEnPreceptor(precId, fechaHoy, container, callback) {
+  // Obtener lista de cursos del preceptor
+  db.ref(`preceptores/${precId}/datos/cursos`).once("value", function(snap) {
+    const cursos = snap.val() || {};
+    const nombreNormalizado = cursoActualPadre.toLowerCase().replace(/[°\s]/g, "").trim();
+    
+    // Buscar el curso que coincida
+    let cursoEncontrado = null;
+    Object.keys(cursos).forEach(nombreCurso => {
+      const nombreNormalizadoCurso = nombreCurso.toLowerCase().replace(/[_]/g, "");
+      if (nombreNormalizadoCurso === nombreNormalizado) {
+        cursoEncontrado = nombreCurso;
+      }
+    });
+    
+    if (!cursoEncontrado) {
       if (callback) callback(false);
       return;
     }
     
     if (callback) callback(true);
     
-    // Guardar referencia para limpiar después
+    // Escuchar presentes del día
+    const ruta = `preceptores/${precId}/datos/cursos/${cursoEncontrado}/presentes/${fechaHoy}`;
+    const ref = db.ref(ruta);
     parentListenerRef = ref;
     
-    // Escuchar cambios en tiempo real
     ref.on("value", function(snap) {
       const presentesHoy = snap.val() ? Object.values(snap.val()) : [];
 
       let html = "";
-      
-      // Card con contador
       html += "<div class=\"card\" style=\"margin-bottom:1.5rem;\">";
-      
-      // Contador
       html += "<div class=\"stats-grid\" style=\"margin-bottom:1rem;\">";
       html += "<div class=\"stat-card green\">";
       html += "<div class=\"stat-num\">" + presentesHoy.length + "</div>";
@@ -91,7 +93,6 @@ function buscarPresentesEnTiempoReal(ruta, container, callback) {
       html += "</div>";
       html += "</div>";
 
-      // Lista de presentes
       if (presentesHoy.length === 0) {
         html += "<p class=\"empty-hint\" style=\"padding:1rem;text-align:center;color:#9ca3af;\">Sin presentes aún.</p>";
       } else {
@@ -112,7 +113,7 @@ function buscarPresentesEnTiempoReal(ruta, container, callback) {
       html += "</div>";
       container.innerHTML = html;
     }, function(err) {
-      container.innerHTML = "<div class=\"card\"><p style=\"color:#dc2626;padding:1rem;text-align:center;\">Error al cargar datos: " + err.message + "</p></div>";
+      container.innerHTML = "<div class=\"card\"><p style=\"color:#dc2626;padding:1rem;text-align:center;\">Error: " + err.message + "</p></div>";
     });
   });
 }
@@ -140,31 +141,58 @@ window.addEventListener("beforeunload", function() {
 // ══════════════════════════════════════════════════════════════
 
 function descargarExcelPadre() {
-  const cid = cursoActualPadre.replace(/[°\s]/g, "_");
+  const fechaHoy = getFechaHoy();
   
   // Intentar con primer preceptor
-  db.ref(`preceptores/jpoviedo01_gmail_com/datos/cursos/${cid}`).once("value", function(snap) {
-    const datosDelCurso = snap.val();
+  db.ref(`preceptores/jpoviedo01_gmail_com/datos/cursos`).once("value", function(snap) {
+    const cursos = snap.val() || {};
+    const nombreNormalizado = cursoActualPadre.toLowerCase().replace(/[°\s]/g, "").trim();
     
-    if (datosDelCurso && datosDelCurso.presentes && datosDelCurso.alumnos) {
-      const alumnos = datosDelCurso.alumnos || {};
-      const presentes = datosDelCurso.presentes || {};
-      generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
+    let cursoEncontrado = null;
+    Object.keys(cursos).forEach(nombreCurso => {
+      const nombreNormalizadoCurso = nombreCurso.toLowerCase().replace(/[_]/g, "");
+      if (nombreNormalizadoCurso === nombreNormalizado) {
+        cursoEncontrado = nombreCurso;
+      }
+    });
+    
+    if (cursoEncontrado) {
+      db.ref(`preceptores/jpoviedo01_gmail_com/datos/cursos/${cursoEncontrado}`).once("value", function(snap2) {
+        const datosDelCurso = snap2.val();
+        if (datosDelCurso && datosDelCurso.presentes && datosDelCurso.alumnos) {
+          const alumnos = datosDelCurso.alumnos || {};
+          const presentes = datosDelCurso.presentes || {};
+          generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
+          return;
+        }
+      });
       return;
     }
     
-    // Si no encontró, intentar con segundo preceptor
-    db.ref(`preceptores/corradilaura_hotmail_com/datos/cursos/${cid}`).once("value", function(snap2) {
-      const datosDelCurso2 = snap2.val();
+    // Si no encontró en primer preceptor, intentar con segundo
+    db.ref(`preceptores/corradilaura_hotmail_com/datos/cursos`).once("value", function(snap3) {
+      const cursos2 = snap3.val() || {};
+      let cursoEncontrado2 = null;
+      Object.keys(cursos2).forEach(nombreCurso => {
+        const nombreNormalizadoCurso = nombreCurso.toLowerCase().replace(/[_]/g, "");
+        if (nombreNormalizadoCurso === nombreNormalizado) {
+          cursoEncontrado2 = nombreCurso;
+        }
+      });
       
-      if (datosDelCurso2 && datosDelCurso2.presentes && datosDelCurso2.alumnos) {
-        const alumnos = datosDelCurso2.alumnos || {};
-        const presentes = datosDelCurso2.presentes || {};
-        generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
+      if (cursoEncontrado2) {
+        db.ref(`preceptores/corradilaura_hotmail_com/datos/cursos/${cursoEncontrado2}`).once("value", function(snap4) {
+          const datosDelCurso2 = snap4.val();
+          if (datosDelCurso2 && datosDelCurso2.presentes && datosDelCurso2.alumnos) {
+            const alumnos = datosDelCurso2.alumnos || {};
+            const presentes = datosDelCurso2.presentes || {};
+            generarExcelParaPadre(alumnos, presentes, cursoActualPadre);
+            return;
+          }
+        });
         return;
       }
       
-      // Si no encontró en ninguno
       alert("No hay datos disponibles para descargar.");
     });
   });
@@ -182,7 +210,7 @@ function generarExcelParaPadre(alumnos, presentes, nombreCurso) {
     const nombreMes = meses[mesNum - 1];
     const datosDelMes = generarDatosDelMes(alumnos, presentes, mesNum);
     
-    if (datosDelMes.data.length > 0) {
+    if (datosDelMes.data.length > 3) {
       const ws = XLSX.utils.aoa_to_sheet(datosDelMes.data);
       
       // Aplicar estilos
