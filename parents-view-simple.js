@@ -1,19 +1,6 @@
 var cursoActualPadre = null;
 var parentListenerRef = null;
 
-window.addEventListener("DOMContentLoaded", function() {
-  const params = new URLSearchParams(location.search);
-  const curso = params.get("curso");
-  
-  if (!curso) {
-    renderParentError("No hay curso especificado en el link.");
-    return;
-  }
-
-  cursoActualPadre = curso;
-  renderParentOnlinePanel();
-});
-
 function renderParentOnlinePanel() {
   const app = document.getElementById("app");
 

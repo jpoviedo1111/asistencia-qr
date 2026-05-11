@@ -19,8 +19,10 @@ window.addEventListener("DOMContentLoaded", function() {
   // Check for parent view
   const parentCurso = new URLSearchParams(location.search).get("curso");
   if (parentCurso && parentCurso.length > 2 && parentCurso.includes("°")) {
-    cursoActualPadre = parentCurso;
-    renderParentOnlinePanel();
+    setTimeout(function() {
+      cursoActualPadre = parentCurso;
+      renderParentOnlinePanel();
+    }, 100);
     return;
   }
   
@@ -28,6 +30,7 @@ window.addEventListener("DOMContentLoaded", function() {
     renderVistaAlumno(cursoQR, precQR);
     return;
   }
+  
   var saved = sessionStorage.getItem("precLogin");
   if (saved) {
     try {
@@ -39,7 +42,7 @@ window.addEventListener("DOMContentLoaded", function() {
       sessionStorage.removeItem("precLogin");
     }
   }
-  // Handle Drive OAuth redirect result
+  
   auth.getRedirectResult().then(function(result) {
     if (result && result.credential && result.credential.accessToken) {
       gdriveToken = result.credential.accessToken;
@@ -51,7 +54,6 @@ window.addEventListener("DOMContentLoaded", function() {
           var prog = document.getElementById("backup-progress");
           if (btn && prog) ejecutarBackup(btn, prog);
           else {
-            // Panel not rendered yet, store flag
             sessionStorage.setItem("driveJustAuthed", "backup");
           }
         }, 1000);
