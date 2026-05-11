@@ -19,7 +19,7 @@ function isWebView() {
 window.addEventListener("DOMContentLoaded", function() {
    // Check for parent view
    const parentCurso = new URLSearchParams(location.search).get("curso");
-   if (parentCurso) {
+   if (parentCurso && parentCurso.includes("°")) {
     // Load parent view directly without login
     cursoActualPadre = parentCurso;
     renderParentOnlinePanel();
