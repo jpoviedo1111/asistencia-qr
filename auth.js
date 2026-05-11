@@ -19,11 +19,10 @@ function isWebView() {
 window.addEventListener("DOMContentLoaded", function() {
    // Check for parent view
    const parentCurso = new URLSearchParams(location.search).get("curso");
-   if (parentCurso && parentCurso.includes("°")) {
-    // Load parent view directly without login
-    cursoActualPadre = parentCurso;
-    renderParentOnlinePanel();
-    return;
+   if (parentCurso && parentCurso.length > 2 && parentCurso.includes("°")) {
+   cursoActualPadre = parentCurso;
+   renderParentOnlinePanel();
+   return;
   }
   
   if (isScan && cursoQR && precQR) {
