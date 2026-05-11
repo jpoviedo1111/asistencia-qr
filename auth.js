@@ -1,4 +1,3 @@
-
 var currentUser = null;
 var currentRole = null;
 var currentData = null;
@@ -17,12 +16,12 @@ function isWebView() {
 }
 
 window.addEventListener("DOMContentLoaded", function() {
-   // Check for parent view
-   const parentCurso = new URLSearchParams(location.search).get("curso");
-   if (parentCurso && parentCurso.length > 2 && parentCurso.includes("°")) {
-   cursoActualPadre = parentCurso;
-   renderParentOnlinePanel();
-   return;
+  // Check for parent view
+  const parentCurso = new URLSearchParams(location.search).get("curso");
+  if (parentCurso && parentCurso.length > 2 && parentCurso.includes("°")) {
+    cursoActualPadre = parentCurso;
+    renderParentOnlinePanel();
+    return;
   }
   
   if (isScan && cursoQR && precQR) {
